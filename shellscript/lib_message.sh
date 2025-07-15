@@ -9,9 +9,25 @@
 # -E: Ensure that ERR trap is also valid in function, subshell, and command replacements
 # -e: When any command exits in a non-zero state, exit the script immediately
 # -u: When using undefined variables, the script will report an error and exit
-# -x: The command and its parameters will be printed when executing the command (for debugging)
 # -o pipefail: When any command in the pipeline fails, the entire pipeline returns to a failed state
 set -Eeuo pipefail
+
+# Check whether the instructions used in the current script exist
+declare -a lacking_packages=()
+readonly command_dependency=('sed' 'tput')
+readonly package_dependency=('sed' 'ncurses-bin')
+
+for i in "${!command_dependency[@]}"; do
+  if !(type -t "${command_dependency[i]}" &> /dev/null); then
+    lacking_packages+=(${package_dependency[i]})
+  fi
+done
+
+if ((${#lacking_packages[@]} != 0)); then
+  printf "\e[38;2;215;0;0mError: command not found, please execute the following command first\n"
+  printf "\e[38;2;128;128;128msudo apt update && sudo apt install -y %s\e[0m\n" "${lacking_packages[*]}"
+  exit 1
+fi
 
 # Define cursor variables
 readonly sgr_reset="\e[0m"
@@ -66,3 +82,4 @@ show_right_text() {
   ((padding_width < 0)) && padding_width=0
   printf "\e[${padding_width}G${*}"
 }
+
