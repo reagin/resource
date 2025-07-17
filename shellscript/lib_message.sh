@@ -33,6 +33,7 @@ check_command_dependencies() {
   fi
 }
 
+# Check whether the instructions used in the current script exist
 check_command_dependencies
 
 # Define cursor variables
