@@ -13,21 +13,27 @@
 set -Eeuo pipefail
 
 # Check whether the instructions used in the current script exist
-declare -a lacking_packages=()
-readonly command_dependency=('sed' 'tput')
-readonly package_dependency=('sed' 'ncurses-bin')
+check_command_dependencies() {
+  local lacking_packages=()
+  # CONFIG: commands appearing in script
+  local command_dependency=('sed' 'tput')
+  # CONFIG: corresponding package name of the command
+  local package_dependency=('sed' 'ncurses-bin')
 
-for i in "${!command_dependency[@]}"; do
-  if !(type -t "${command_dependency[i]}" &> /dev/null); then
-    lacking_packages+=(${package_dependency[i]})
+  for i in "${!command_dependency[@]}"; do
+    if !(type -t "${command_dependency[i]}" &> /dev/null); then
+      lacking_packages+=(${package_dependency[i]})
+    fi
+  done
+
+  if ((${#lacking_packages[@]} != 0)); then
+    printf "\e[38;2;215;0;0mError: command not found, please execute the following command first\n"
+    printf "\e[38;2;128;128;128msudo apt update && sudo apt install -y %s\e[0m\n" "${lacking_packages[*]}"
+    exit 1
   fi
-done
+}
 
-if ((${#lacking_packages[@]} != 0)); then
-  printf "\e[38;2;215;0;0mError: command not found, please execute the following command first\n"
-  printf "\e[38;2;128;128;128msudo apt update && sudo apt install -y %s\e[0m\n" "${lacking_packages[*]}"
-  exit 1
-fi
+check_command_dependencies
 
 # Define cursor variables
 readonly sgr_reset="\e[0m"
@@ -66,7 +72,7 @@ show_center_text() {
   # Escape strings and remove control characters
   plain_text=$(echo -ne "${*}" | sed -E 's/\x1B\[[0-9;]*[mK]//g')
   # When the tput instruction error occurs, set the terminal width to the string length
-  term_width=$(tput cols 2> /dev/null || echo ${#plain_text})
+  term_width=$(tput cols 2>/dev/null || echo ${#plain_text})
   padding_width=$(((term_width - ${#plain_text}) / 2))
   ((padding_width < 0)) && padding_width=0
   printf "\e[${padding_width}G${*}"
@@ -77,9 +83,8 @@ show_right_text() {
   # Escape strings and remove control characters
   plain_text=$(echo -ne "${*}" | sed -E 's/\x1B\[[0-9;]*[mK]//g')
   # When the tput instruction error occurs, set the terminal width to the string length
-  term_width=$(tput cols 2> /dev/null || echo ${#plain_text})
+  term_width=$(tput cols 2>/dev/null || echo ${#plain_text})
   padding_width=$((term_width - ${#plain_text}))
   ((padding_width < 0)) && padding_width=0
   printf "\e[${padding_width}G${*}"
 }
-
