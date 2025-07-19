@@ -14,11 +14,11 @@ set -Eeuo pipefail
 
 # Check whether the instructions used in the current script exist
 check_command_dependencies() {
-  local lacking_packages=()
-  # CONFIG: commands appearing in script
-  local command_dependency=('sed' 'tput')
-  # CONFIG: corresponding package name of the command
-  local package_dependency=('sed' 'ncurses-bin')
+  local lacking_packages command_dependency package_dependency
+
+  lacking_packages=()
+  command_dependency=('sed' 'tput')
+  package_dependency=('sed' 'ncurses-bin')
 
   for i in "${!command_dependency[@]}"; do
     if !(type -t "${command_dependency[i]}" &> /dev/null); then

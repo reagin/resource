@@ -36,7 +36,7 @@ pushd "${TEMPDIRECTORY}" &>/dev/null || {
 }
 
 # Check whether the execution user is root
-check_root_user() {
+check_is_root() {
   if [[ $(id -u) != 0 ]]; then
     printf "\e[38;2;215;0;0mError: please run the script with root permissions\e[0m\n"
     exit 1
@@ -45,11 +45,13 @@ check_root_user() {
 
 # Check whether the instructions used in the current script exist
 check_command_dependencies() {
-  local lacking_packages=()
+  local lacking_packages command_dependency package_dependency
+
+  lacking_packages=()
   # CONFIG: commands appearing in script
-  local command_dependency=()
+  command_dependency=()
   # CONFIG: corresponding package name of the command
-  local package_dependency=()
+  package_dependency=()
 
   for i in "${!command_dependency[@]}"; do
     if !(type -t "${command_dependency[i]}" &> /dev/null); then
@@ -66,24 +68,30 @@ check_command_dependencies() {
 
 # Load external script resources
 load_external_scripts() {
+  local script_file external_script_links
+
   # CONFIG: the URL address of the external script
-  local external_script_links=()
+  external_script_links=()
 
   for link in "${external_script_links[@]}"; do
-    script_file=$(mktemp -p "${TEMPDIRECTORY}" -t script_XXXXXX.sh) || {
-      printf "\e[38;2;215;0;0mError: failed to create temporary file for ${link}\e[0m\n"
-      continue
+    script_file=$(mktemp -p "${TEMPDIRECTORY}" -t script_XXXXXX.sh 2>/dev/null) || {
+      printf "\e[38;2;215;0;0mError: failed to create temporary file for %s\e[0m\n" "${link}"
+      exit 1
     }
-    curl -fsSL "${link}" -o "${script_file}" 2>/dev/null
-    source "${script_file}"
+    if curl -fsSL "${link}" -o "${script_file}" 2>/dev/null; then
+      source "${script_file}"
+    else
+      printf "\e[38;2;215;0;0mError: failed to download external script: %s\e[0m\n" "${link}"
+      exit 1
+    fi
   done
 }
 
 # Check whether the execution user is root
-check_root_user
+# check_is_root # TODO: Delete comments to enable functions
 # Check whether the instructions used in the current script exist
-check_command_dependencies
+# check_command_dependencies  # TODO: Delete comments to enable functions
 # Load external script resources
-load_external_scripts
+# load_external_scripts # TODO: Delete comments to enable functions
 
 # TODO: Please write the main program of the script below
