@@ -68,7 +68,7 @@ load_external_scripts() {
   local script_file external_script_links
 
   external_script_links=(
-    'https://cdn.jsdelivr.net/gh/rehuony/resource@main/shellscript/lib_message.sh'
+    'https://cdn.jsdelivr.net/gh/rehuony/resource@main/shellscript/library/message.sh'
   )
 
   for link in "${external_script_links[@]}"; do
