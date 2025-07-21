@@ -39,14 +39,52 @@ readonly background_color_purple="\e[48;2;160;160;220m"
 readonly background_color_red="\e[48;2;200;0;0m"
 readonly background_color_yellow="\e[48;2;200;200;90m"
 
+# -------------------------------------------------------------------
+# show_text
+#
+# Description:
+#   Prints the given arguments as text to the terminal
+#
+# Arguments:
+#   $@ - The text to display
+#
+# Usage:
+#   show_text "Hello, World!"
+# -------------------------------------------------------------------
 show_text() {
   printf "${*}"
 }
 
+# -------------------------------------------------------------------
+# show_left_text
+#
+# Description:
+#   Prints the given arguments aligned to the left edge of the
+#   terminal
+#
+# Arguments:
+#   $@ - The text to display
+#
+# Usage:
+#   show_left_text "Left aligned text"
+# -------------------------------------------------------------------
 show_left_text() {
   printf "\e[1G${*}"
 }
 
+# -------------------------------------------------------------------
+# show_center_text
+#
+# Description:
+#   Prints the given arguments centered horizontally in the terminal.
+#   Strips ANSI escape sequences to calculate the correct width
+#
+# Arguments:
+#   $@ - The text to display
+#
+# Usage:
+#   show_center_text "Centered text"
+# -------------------------------------------------------------------
 show_center_text() {
   local plain_text term_width padding_width
   # Escape strings and remove control characters
@@ -58,6 +96,20 @@ show_center_text() {
   printf "\e[${padding_width}G${*}"
 }
 
+# -------------------------------------------------------------------
+# show_right_text
+#
+# Description:
+#   Prints the given arguments aligned to the right edge of the
+#   terminal. Strips ANSI escape sequences to calculate the correct
+#   width
+#
+# Arguments:
+#   $@ - The text to display
+#
+# Usage:
+#   show_right_text "Right aligned text"
+# -------------------------------------------------------------------
 show_right_text() {
   local plain_text term_width padding_width
   # Escape strings and remove control characters

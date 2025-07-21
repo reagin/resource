@@ -119,6 +119,7 @@ source_external_scripts() {
   lacking_packages=()
   external_script_links=(
     'https://cdn.jsdelivr.net/gh/rehuony/resource@main/shellscript/library/message.lib.sh'
+    'https://cdn.jsdelivr.net/gh/rehuony/resource@main/shellscript/library/utility.lib.sh'
   )
 
   printf "\e[2mLoading external scripts now ...\e[0m\n"
@@ -183,73 +184,6 @@ check_environment
 check_dependencies
 # Source external script resources
 source_external_scripts
-
-install_content() {
-  local mode owner group content destination tempfile
-
-  mode="${1}"
-  owner="${2%%:*}"
-  group="${2##*:}"
-  content="${3}"
-  destination="${4}"
-
-  if [[ -z "${mode}" || "${#mode}" != 3 ]]; then
-    show_text "${foreground_color_red}Error: pass permission parameters in 644 format${sgr_reset}\n"
-    return 1
-  elif [[ -z "${owner}" || -z "${group}" ]]; then
-    show_text "${foreground_color_red}Error: pass parameter in owner:group format${sgr_reset}\n"
-    return 1
-  elif [[ -z "${destination}" || "${destination:0:1}" != "/" ]]; then
-    show_text "${foreground_color_red}Error: destination must be passed as an absolute path${sgr_reset}\n"
-    return 1
-  fi
-
-  show_text "${sgr_faint}Installing content for ${destination} - "
-
-  if [[ -e "${destination}" ]]; then
-    show_text "${foreground_color_yellow}"
-  fi
-
-  if ! tempfile=$(mktemp -p "${TEMPDIRECTORY}" -t tempfile_XXXXXX 2>/dev/null); then
-    show_text "${foreground_color_red}failed to create temporary file${sgr_reset}\n"
-    return 1
-  fi
-
-  printf '%s\n' "${content}" >"${tempfile}"
-
-  if install -D --mode="${mode}" --owner="${owner}" --group="${group}" --suffix=".bak" "${tempfile}" "${destination}" 2>/dev/null; then
-    show_text "done${sgr_reset}\n"
-  else
-    show_text "${foreground_color_red}"
-    show_text "error${sgr_reset}\n"
-  fi
-}
-
-remove_content() {
-  local destination
-
-  destination="${1}"
-
-  if [[ -z "${destination}" || "${destination:0:1}" != "/" ]]; then
-    show_text "${foreground_color_red}Error: destination must be passed as an absolute path${sgr_reset}\n"
-    return 1
-  fi
-
-  show_text "${sgr_faint}Removing content for ${destination} - "
-
-  if ! [[ -e "${destination}" ]]; then
-    show_text "${foreground_color_yellow}not exist${sgr_reset}\n"
-    return 0
-  fi
-
-  if [[ "$destination" == '/' ]]; then
-    show_text "${foreground_color_red}failed to remove /${sgr_reset}\n"
-    return 1
-  fi
-
-  rm -rf "${destination}"
-  show_text "done${sgr_reset}\n"
-}
 
 generate_authorized_keys() {
   cat <<EOF

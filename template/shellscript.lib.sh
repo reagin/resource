@@ -14,3 +14,24 @@ set -Eeuo pipefail
 
 lib_command_dependency=() # CONFIG: commands appearing in library script
 lib_package_dependency=() # CONFIG: corresponding package name of the command
+
+# -------------------------------------------------------------------
+# function_name
+#
+# Description:
+#   Description for function
+#
+# Arguments:
+#   $1  - argument 1 (e.g., "demo1")
+#   $2  - argument 2 (e.g., "demo2")
+#
+# Returns:
+#   0 on success
+#   1 on error
+#
+# Usage:
+#   function_name "demo1" "demo2"
+# -------------------------------------------------------------------
+# function_name() {
+#   return 0
+# }
