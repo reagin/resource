@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 
-# lib_message.sh
+# message.lib.sh
 # Author: rehuony
-# Description: Format beautiful output information
+# Description: Format output information
 # GitHub: https://github.com/rehuony/resource
 
 # Enable the following shell options:
@@ -12,29 +12,8 @@
 # -o pipefail: When any command in the pipeline fails, the entire pipeline returns to a failed state
 set -Eeuo pipefail
 
-# Check whether the instructions used in the current script exist
-check_command_dependencies() {
-  local lacking_packages command_dependency package_dependency
-
-  lacking_packages=()
-  command_dependency=('sed' 'tput')
-  package_dependency=('sed' 'ncurses-bin')
-
-  for i in "${!command_dependency[@]}"; do
-    if !(type -t "${command_dependency[i]}" &> /dev/null); then
-      lacking_packages+=(${package_dependency[i]})
-    fi
-  done
-
-  if ((${#lacking_packages[@]} != 0)); then
-    printf "\e[38;2;215;0;0mError: command not found, please execute the following command first\n"
-    printf "\e[38;2;128;128;128msudo apt update && sudo apt install -y %s\e[0m\n" "${lacking_packages[*]}"
-    exit 1
-  fi
-}
-
-# Check whether the instructions used in the current script exist
-check_command_dependencies
+lib_command_dependency=('sed' 'tput')
+lib_package_dependency=('sed' 'ncurses-bin')
 
 # Define cursor variables
 readonly sgr_reset="\e[0m"
