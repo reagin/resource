@@ -91,6 +91,10 @@ check_dependencies() {
   command_dependency=() # CONFIG: commands appearing in script
   package_dependency=() # CONFIG: corresponding package name of the command
 
+  if [[ ${#command_dependency[@]} == 0 ]]; then
+    return 0
+  fi
+
   printf "\e[2mChecking command dependencies now ...\e[0m\n"
 
   for index in "${!command_dependency[@]}"; do
@@ -115,10 +119,15 @@ check_dependencies() {
 
 # Load external script resources
 source_external_scripts() {
-  local script_file lacking_packages external_script_links
+  local script_file external_script_links command_dependency package_dependency
 
-  lacking_packages=()
+  command_dependency=()
+  package_dependency=()
   external_script_links=() # CONFIG: the URL address of the external script
+
+  if [[ ${#external_script_links[@]} == 0 ]]; then
+    return 0
+  fi
 
   printf "\e[2mLoading external scripts now ...\e[0m\n"
 
@@ -140,38 +149,48 @@ source_external_scripts() {
     source "${script_file}"
 
     for index in "${!lib_command_dependency[@]}"; do
-      type -t "${lib_command_dependency[index]}" &>/dev/null && continue
-
       local is_exist="false"
 
-      for package in "${lacking_packages[@]}"; do
-        if [[ "${package}" == "${lib_package_dependency[index]}" ]]; then
+      for cmd in "${command_dependency[@]}"; do
+        if [[ "${cmd}" == "${lib_command_dependency[index]}" ]]; then
           is_exist="true"
           break
         fi
       done
 
       if [[ "${is_exist}" == "false" ]]; then
-        lacking_packages+=("${lib_package_dependency[index]}")
+        command_dependency+=("${lib_command_dependency[index]}")
+        package_dependency+=("${lib_package_dependency[index]}")
       fi
     done
 
     printf "done\e[0m\n"
   done
 
+  if [[ ${#command_dependency[@]} == 0 ]]; then
+    return 0
+  fi
+
   printf "\e[2mInstalling external command dependencies ...\e[0m\n"
 
-  if [[ ${#lacking_packages[@]} != 0 ]]; then
-    printf "\e[4C\e[2m${package_manager} ${lacking_packages[*]} ... "
+  for index in "${!command_dependency[@]}"; do
+    printf "\e[4C\e[2m${command_dependency[index]} - "
 
-    if sh -c "${package_manager} ${lacking_packages[*]}" &>/dev/null; then
-      printf "done\e[0m\n"
+    if type -t "${command_dependency[index]}" &>/dev/null; then
+      printf "installed\e[0m\n"
     else
-      printf "error\e[0m\n"
-      printf "\e[38;2;215;0;0mError: please run the installation command manually\e[0m\n"
-      exit 1
+      printf "not installed\e[0m\n"
+      printf "\e[8C\e[2m${package_manager} ${package_dependency[index]} ... "
+
+      if sh -c "${package_manager} ${package_dependency[index]}" &>/dev/null; then
+        printf "done\e[0m\n"
+      else
+        printf "error\e[0m\n"
+        printf "\e[38;2;215;0;0mError: please run the command manually\e[0m\n"
+        exit 1
+      fi
     fi
-  fi
+  done
 }
 
 # Check whether the execution user is root
