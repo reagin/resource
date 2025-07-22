@@ -203,24 +203,3 @@ source_external_scripts() {
 # source_external_scripts # TODO: Delete comments to enable functions
 
 # TODO: Please write the main program of the script below
-
-# -------------------------------------------------------------------
-# function_name
-#
-# Description:
-#   Description for function
-#
-# Arguments:
-#   $1  - argument 1 (e.g., "demo1")
-#   $2  - argument 2 (e.g., "demo2")
-#
-# Returns:
-#   0 on success
-#   1 on error
-#
-# Usage:
-#   function_name "demo1" "demo2"
-# -------------------------------------------------------------------
-# function_name() {
-#   return 0
-# }

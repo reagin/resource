@@ -120,3 +120,67 @@ show_right_text() {
   ((padding_width < 0)) && padding_width=0
   printf "\e[${padding_width}G${*}"
 }
+
+# -------------------------------------------------------------------
+# show_info
+#
+# Description:
+#   Prints the given arguments as an info message in blue color
+#
+# Arguments:
+#   $@ - The text to display
+#
+# Usage:
+#   show_info "This is an info message"
+# -------------------------------------------------------------------
+show_info() {
+  printf "${foreground_color_blue}[INFO]${sgr_reset} ${sgr_faint}${*}${sgr_reset}"
+}
+
+# -------------------------------------------------------------------
+# show_warn
+#
+# Description:
+#   Prints the given arguments as a warning message in yellow color
+#
+# Arguments:
+#   $@ - The text to display
+#
+# Usage:
+#   show_warn "This is a warning message"
+# -------------------------------------------------------------------
+show_warn() {
+  printf "${foreground_color_yellow}[WARN]${sgr_reset} ${sgr_faint}${*}${sgr_reset}"
+}
+
+# -------------------------------------------------------------------
+# show_error
+#
+# Description:
+#   Prints the given arguments as an error message in red color
+#
+# Arguments:
+#   $@ - The text to display
+#
+# Usage:
+#   show_error "This is an error message"
+# -------------------------------------------------------------------
+show_error() {
+  printf "${foreground_color_red}[ERROR]${sgr_reset} ${sgr_faint}${*}${sgr_reset}"
+}
+
+# -------------------------------------------------------------------
+# show_success
+#
+# Description:
+#   Prints the given arguments as a success message in green color
+#
+# Arguments:
+#   $@ - The text to display
+#
+# Usage:
+#   show_success "This is a success message"
+# -------------------------------------------------------------------
+show_success() {
+  printf "${foreground_color_green}[SUCCESS]${sgr_reset} ${sgr_faint}${*}${sgr_reset}"
+}

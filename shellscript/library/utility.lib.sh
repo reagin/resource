@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# shellscript.lib.sh
+# utility.lib.sh
 # Author: rehuony
 # Description: Template file used to create library shellscript
 # GitHub: https://github.com/rehuony/resource
@@ -12,8 +12,8 @@
 # -o pipefail: When any command in the pipeline fails, the entire pipeline returns to a failed state
 set -Eeuo pipefail
 
-lib_command_dependency=(md5sum awk)
-lib_package_dependency=(coreutils gawk)
+lib_command_dependency=(awk md5sum)
+lib_package_dependency=(gawk coreutils)
 
 # -------------------------------------------------------------------
 # install_content
@@ -25,15 +25,15 @@ lib_package_dependency=(coreutils gawk)
 #   already exists, a backup is created with a ".bak" suffix
 #
 # Arguments:
-#   $1 - File mode/permissions (e.g., "644")
-#   $2 - Owner and group in "owner" or "owner:group" format (e.g.,
-#       "root" or "root:root")
+#   $1 - File mode (e.g. "644")
+#   $2 - Owner and group (e.g. "root" or "root:root")
 #   $3 - Content to be written to the file
 #   $4 - Absolute path to the destination file
 #
 # Returns:
-#   0 on success
-#   1 on error
+#   0 - install content success
+#   1 - parameter error or operation failed
+#   2 - target file already exists and is backed up
 #
 # Usage:
 #   install_content 644 "root:root" "content" "/path/to/destination"
@@ -47,38 +47,58 @@ install_content() {
   content="${3}"
   destination="${4}"
 
-  if [[ -z "${mode}" || "${#mode}" != 3 ]]; then
-    printf "\e[38;2;215;0;0mError: pass permission parameters in 644 format\e[0m\n"
-    return 1
-  elif [[ -z "${owner}" || -z "${group}" ]]; then
-    printf "\e[38;2;215;0;0mError: pass parameter in owner:group format\e[0m\n"
-    return 1
-  elif [[ -z "${destination}" || "${destination:0:1}" != "/" ]]; then
-    printf "\e[38;2;215;0;0mError: destination must be passed as an absolute path\e[0m\n"
-    return 1
-  fi
+  # Exit if the key parameter is empty
+  [[ -z "${mode}" || -z "${owner}" || -z "${group}" || -z "${destination}" ]] && return 1
+  # Ensure file permissions are in 644 format
+  [[ "${mode}" =~ ^[1-7]{3}$ ]] || return 1
+  # Make sure the target path is an absolute path
+  [[ "${destination:0:1}" == "/" ]] || return 1
+  # Make sure the target path is not a directory file
+  [[ -d "${destination}" ]] && return 1
 
-  printf "\e[2mInstalling content for ${destination} - "
-
-  if [[ -e "${destination}" ]]; then
-    printf "\e[38;2;215;215;95m"
-  fi
-
-  if ! tempfile=$(mktemp -p "${TEMPDIRECTORY}" -t tempfile_XXXXXX 2>/dev/null); then
-    printf "\e[38;2;215;0;0mfailed to create temporary file\e[0m\n"
-    return 1
-  fi
+  tempfile=$(mktemp -t tempfile_XXXXXX 2>/dev/null) || return 1
 
   printf '%s\n' "${content}" >"${tempfile}"
 
-  if install -D --mode="${mode}" --owner="${owner}" --group="${group}" --suffix=".bak" "${tempfile}" "${destination}" 2>/dev/null; then
-    printf "done\e[0m\n"
-  else
-    printf "\e[38;2;215;0;0m"
-    printf "error\e[0m\n"
-  fi
+  install -D --mode="${mode}" --owner="${owner}" --group="${group}" --suffix=".bak" "${tempfile}" "${destination}" 2>/dev/null || {
+    rm -rf "${tempfile}"
+    return 1
+  }
 
   rm -rf "${tempfile}"
+
+  if [[ -e "${destination}.bak" ]]; then
+    return 2
+  fi
+}
+
+# -------------------------------------------------------------------
+# install_content_with_comment
+#
+# Description:
+#   Calls install_content to install the given content to a specified
+#   destination file with defined permissions, owner, and group, and
+#   prints status messages to the console. If the destination already
+#   exists, a backup is created with a ".bak" suffix.
+#
+# Arguments:
+#   $1 - File mode (e.g. "644")
+#   $2 - Owner and group (e.g. "root" or "root:root")
+#   $3 - Content to be written to the file
+#   $4 - Absolute path to the destination file
+#
+# Usage:
+#   install_content_with_comment 644 "root:root" "content" "/path/to/destination"
+# -------------------------------------------------------------------
+install_content_with_comment() {
+  printf "\e[38;2;0;135;215m[INFO]\e[0m \e[2mInstalling content for ${4} ...\n\e[0m"
+  if install_content "${@}"; then
+    printf "\e[38;2;0;175;0m[SUCCESS]\e[0m \e[2mInstalled content for ${4}\n\e[0m"
+  elif [[ "$?" == 2 ]]; then
+    printf "\e[38;2;215;215;95m[WARN]\e[0m \e[2mBackup old file to ${4}.bak\n\e[0m"
+  else
+    printf "\e[38;2;215;0;0m[ERROR]\e[0m \e[2mFailed to install content for ${4}\n\e[0m"
+  fi
 }
 
 # -------------------------------------------------------------------
@@ -93,8 +113,8 @@ install_content() {
 #   $1 - Absolute path to the file or directory to remove
 #
 # Returns:
-#   0 on success
-#   1 on error
+#   0 - remove content success
+#   1 - parameter error or operation failed
 #
 # Usage:
 #   remove_content "/path/to/destination"
@@ -104,25 +124,36 @@ remove_content() {
 
   destination="${1}"
 
-  if [[ -z "${destination}" || "${destination:0:1}" != "/" ]]; then
-    printf "\e[38;2;215;0;0mError: destination must be passed as an absolute path\e[0m\n"
-    return 1
+  # Make sure the target path is an absolute path
+  [[ -n "${destination}" && "${destination:0:1}" == "/" ]] || return 1
+
+  case "${destination}" in
+    '/' | '/.' | '/..' | '/./' | '/../') return 1 ;;
+  esac
+
+  rm -rf "${destination}" 2>/dev/null || return 1
+}
+
+# -------------------------------------------------------------------
+# remove_content_with_comment
+#
+# Description:
+#   Calls remove_content to remove the specified file or directory at
+#   the given absolute path, and prints status messages to the console.
+#
+# Arguments:
+#   $1 - Absolute path to the file or directory to remove
+#
+# Usage:
+#   remove_content_with_comment "/path/to/destination"
+# -------------------------------------------------------------------
+remove_content_with_comment() {
+  printf "\e[38;2;0;135;215m[INFO]\e[0m \e[2mRemoving content for ${1} ...\n\e[0m"
+  if remove_content "$1"; then
+    printf "\e[38;2;0;175;0m[SUCCESS]\e[0m \e[2mRemoved content for ${1}\n\e[0m"
+  else
+    printf "\e[38;2;215;0;0m[ERROR]\e[0m \e[2mFailed to remove content for ${1}\n\e[0m"
   fi
-
-  printf "\e[2mRemoving content for ${destination} - "
-
-  if ! [[ -e "${destination}" ]]; then
-    printf "\e[38;2;215;215;95mnot exist\e[0m\n"
-    return 0
-  fi
-
-  if [[ "$destination" == '/' ]]; then
-    printf "\e[38;2;215;0;0mfailed to remove /\e[0m\n"
-    return 1
-  fi
-
-  rm -rf "${destination}"
-  printf "done\e[0m\n"
 }
 
 # -------------------------------------------------------------------
