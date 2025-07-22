@@ -50,7 +50,7 @@ install_content() {
   # Exit if the key parameter is empty
   [[ -z "${mode}" || -z "${owner}" || -z "${group}" || -z "${destination}" ]] && return 1
   # Ensure file permissions are in 644 format
-  [[ "${mode}" =~ ^[1-7]{3}$ ]] || return 1
+  [[ "${mode}" =~ ^[0-7]{3}$ ]] || return 1
   # Make sure the target path is an absolute path
   [[ "${destination:0:1}" == "/" ]] || return 1
   # Make sure the target path is not a directory file
