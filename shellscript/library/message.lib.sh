@@ -40,23 +40,7 @@ readonly background_color_red="\e[48;2;200;0;0m"
 readonly background_color_yellow="\e[48;2;200;200;90m"
 
 # -------------------------------------------------------------------
-# show_text
-#
-# Description:
-#   Prints the given arguments as text to the terminal
-#
-# Arguments:
-#   $@ - The text to display
-#
-# Usage:
-#   show_text "Hello, World!"
-# -------------------------------------------------------------------
-show_text() {
-  printf "${*}"
-}
-
-# -------------------------------------------------------------------
-# show_left_text
+# show_content_left
 #
 # Description:
 #   Prints the given arguments aligned to the left edge of the
@@ -66,14 +50,14 @@ show_text() {
 #   $@ - The text to display
 #
 # Usage:
-#   show_left_text "Left aligned text"
+#   show_content_left "Left aligned text"
 # -------------------------------------------------------------------
-show_left_text() {
+show_content_left() {
   printf "\e[1G${*}"
 }
 
 # -------------------------------------------------------------------
-# show_center_text
+# show_content_center
 #
 # Description:
 #   Prints the given arguments centered horizontally in the terminal.
@@ -83,9 +67,9 @@ show_left_text() {
 #   $@ - The text to display
 #
 # Usage:
-#   show_center_text "Centered text"
+#   show_content_center "Centered text"
 # -------------------------------------------------------------------
-show_center_text() {
+show_content_center() {
   local plain_text term_width padding_width
   # Escape strings and remove control characters
   plain_text=$(echo -ne "${*}" | sed -E 's/\x1B\[[0-9;]*[mK]//g')
@@ -97,7 +81,7 @@ show_center_text() {
 }
 
 # -------------------------------------------------------------------
-# show_right_text
+# show_content_right
 #
 # Description:
 #   Prints the given arguments aligned to the right edge of the
@@ -108,9 +92,9 @@ show_center_text() {
 #   $@ - The text to display
 #
 # Usage:
-#   show_right_text "Right aligned text"
+#   show_content_right "Right aligned text"
 # -------------------------------------------------------------------
-show_right_text() {
+show_content_right() {
   local plain_text term_width padding_width
   # Escape strings and remove control characters
   plain_text=$(echo -ne "${*}" | sed -E 's/\x1B\[[0-9;]*[mK]//g')
@@ -119,6 +103,22 @@ show_right_text() {
   padding_width=$((term_width - ${#plain_text}))
   ((padding_width < 0)) && padding_width=0
   printf "\e[${padding_width}G${*}"
+}
+
+# -------------------------------------------------------------------
+# show_text
+#
+# Description:
+#   Prints the given arguments as an message in faint font
+#
+# Arguments:
+#   $@ - The text to display
+#
+# Usage:
+#   show_text "This is an faint message"
+# -------------------------------------------------------------------
+show_text() {
+  printf "${sgr_faint}${*}${sgr_reset}"
 }
 
 # -------------------------------------------------------------------

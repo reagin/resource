@@ -29,6 +29,7 @@ lib_package_dependency=(gawk coreutils)
 #   $2 - Owner and group (e.g. "root" or "root:root")
 #   $3 - Content to be written to the file
 #   $4 - Absolute path to the destination file
+#   $5 - Whether to delete the backup file (e.g. "true" or "false")
 #
 # Returns:
 #   0 - install content success
@@ -39,13 +40,14 @@ lib_package_dependency=(gawk coreutils)
 #   install_content 644 "root:root" "content" "/path/to/destination"
 # -------------------------------------------------------------------
 install_content() {
-  local mode owner group content destination tempfile
+  local mode owner group content destination remove_flag tempfile
 
   mode="${1}"
   owner="${2%%:*}"
   group="${2##*:}"
   content="${3}"
   destination="${4}"
+  remove_flag="${5:-false}"
 
   # Exit if the key parameter is empty
   [[ -z "${mode}" || -z "${owner}" || -z "${group}" || -z "${destination}" ]] && return 1
@@ -66,6 +68,7 @@ install_content() {
   }
 
   rm -rf "${tempfile}"
+  [[ "${remove_flag}" == "true" ]] && rm -rf "${destination}.bak"
 
   if [[ -e "${destination}.bak" ]]; then
     return 2
@@ -86,18 +89,19 @@ install_content() {
 #   $2 - Owner and group (e.g. "root" or "root:root")
 #   $3 - Content to be written to the file
 #   $4 - Absolute path to the destination file
+#   $5 - Whether to delete the backup file (e.g. "true" or "false")
 #
 # Usage:
 #   install_content_with_comment 644 "root:root" "content" "/path/to/destination"
 # -------------------------------------------------------------------
 install_content_with_comment() {
-  printf "\e[38;2;0;135;215m[INFO]\e[0m \e[2mInstalling content for ${4} ...\n\e[0m"
+  printf "\e[38;2;0;135;215m[INFO]\e[0m \e[2minstalling content for ${4} ...\n\e[0m"
   if install_content "${@}"; then
-    printf "\e[38;2;0;175;0m[SUCCESS]\e[0m \e[2mInstalled content for ${4}\n\e[0m"
+    printf "\e[38;2;0;175;0m[SUCCESS]\e[0m \e[2minstalled content for ${4}\n\e[0m"
   elif [[ "$?" == 2 ]]; then
-    printf "\e[38;2;215;215;95m[WARN]\e[0m \e[2mBackup old file to ${4}.bak\n\e[0m"
+    printf "\e[38;2;215;215;95m[WARN]\e[0m \e[2mbackup old file to ${4}.bak\n\e[0m"
   else
-    printf "\e[38;2;215;0;0m[ERROR]\e[0m \e[2mFailed to install content for ${4}\n\e[0m"
+    printf "\e[38;2;215;0;0m[ERROR]\e[0m \e[2mfailed to install content for ${4}\n\e[0m"
   fi
 }
 
@@ -148,11 +152,11 @@ remove_content() {
 #   remove_content_with_comment "/path/to/destination"
 # -------------------------------------------------------------------
 remove_content_with_comment() {
-  printf "\e[38;2;0;135;215m[INFO]\e[0m \e[2mRemoving content for ${1} ...\n\e[0m"
+  printf "\e[38;2;0;135;215m[INFO]\e[0m \e[2mremoving content for ${1} ...\n\e[0m"
   if remove_content "$1"; then
-    printf "\e[38;2;0;175;0m[SUCCESS]\e[0m \e[2mRemoved content for ${1}\n\e[0m"
+    printf "\e[38;2;0;175;0m[SUCCESS]\e[0m \e[2mremoved content for ${1}\n\e[0m"
   else
-    printf "\e[38;2;215;0;0m[ERROR]\e[0m \e[2mFailed to remove content for ${1}\n\e[0m"
+    printf "\e[38;2;215;0;0m[ERROR]\e[0m \e[2mfailed to remove content for ${1}\n\e[0m"
   fi
 }
 

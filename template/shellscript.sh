@@ -53,7 +53,7 @@ check_environment() {
   case "${os_name}" in
     arch)
       os_arch=$(uname -m)
-      package_suffix=".zst"
+      package_suffix=".pkg.tar.zst"
       package_manager="pacman -S --noconfirm"
       package_installer="pacman -U --noconfirm"
       ;;
