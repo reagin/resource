@@ -241,10 +241,10 @@ for user_dir in /root /home/*; do
   user_name=$(basename "${user_dir}")
   junk_files=('.bash_history' '.cloud-locale-test.skip' '.viminfo' '.wget-hsts')
 
-  install_content_with_comment 600 "${user_name}:${user_name}" "$(generate_authorized_keys)" "${user_dir}/.ssh/authorized_keys" "true"
-  install_content_with_comment 644 "${user_name}:${user_name}" "$(generate_alias_config)" "${user_dir}/.bash_aliases" "true"
-  install_content_with_comment 644 "${user_name}:${user_name}" "$(generate_vim_config)" "${user_dir}/.vimrc" "true"
-  install_content_with_comment 644 "${user_name}:${user_name}" "" "${user_dir}/.hushlogin" "true"
+  install_content_with_comment 600 "${user_name}:${user_name}" "$(generate_authorized_keys)" "${user_dir}/.ssh/authorized_keys" true
+  install_content_with_comment 644 "${user_name}:${user_name}" "$(generate_alias_config)" "${user_dir}/.bash_aliases" true
+  install_content_with_comment 644 "${user_name}:${user_name}" "$(generate_vim_config)" "${user_dir}/.vimrc" true
+  install_content_with_comment 644 "${user_name}:${user_name}" "" "${user_dir}/.hushlogin" true
 
   # Modify the .bashrc file in the home directory
   sed -Ei 's/^#?(force_color_prompt).*/\1=yes/Ig' "${user_dir}/.bashrc"
