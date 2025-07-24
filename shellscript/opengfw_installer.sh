@@ -87,8 +87,8 @@ check_environment() {
 check_dependencies() {
   local command_dependency package_dependency
 
-  command_dependency=("curl" "openssl" "sed" "grep" "awk" "mktemp" "systemctl" "adduser")
-  package_dependency=("curl" "openssl" "sed" "grep" "gawk" "coreutils" "systemd" "passwd")
+  command_dependency=("curl" "openssl" "sed" "grep" "awk" "mktemp" "systemctl" "adduser" "uuidgen")
+  package_dependency=("curl" "openssl" "sed" "grep" "gawk" "coreutils" "systemd" "passwd" "uuid-runtime")
 
   if [[ ${#command_dependency[@]} == 0 ]]; then
     return 0
@@ -676,7 +676,7 @@ read -e -p "domain name: " user_domain
 read -e -p "cloudflare token: " user_token
 
 # Generate global configuration information
-user_uuid=$(sing-box generate uuid)
+user_uuid=$(uuidgen -r)
 user_password=$(generate_random_password)
 certificate_path="/etc/letsencrypt/live/${user_domain}/fullchain.pem",
 certificate_key_path="/etc/letsencrypt/live/${user_domain}/privkey.pem"
@@ -695,3 +695,7 @@ modofy_nginx_default
 install_sing-box_binary
 # Overwrite sing-box configuration file
 modofy_sing-box_default
+
+# simple print
+show_text "user_uuid: ${user_uuid}\n"
+show_text "user_password: ${user_password}\n"
