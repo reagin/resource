@@ -206,7 +206,7 @@ source_external_scripts
 
 # NOTE: Install certbot and apply for a certificate for user's domain
 install_certbot_binary() {
-  show_info "detecting the status of certbot - "
+  show_info "checking the status of certbot - "
   type -t certbot &>/dev/null && {
     show_text "installed\n"
     return 0
@@ -215,7 +215,7 @@ install_certbot_binary() {
 
   show_info "executing command ${package_manager} certbot python3-certbot-dns-cloudflare\n"
   if sh -c "${package_manager} certbot python3-certbot-dns-cloudflare" &>/dev/null; then
-    show_success "successfully installed certbot python3-certbot-dns-cloudflare\n"
+    show_success "installed certbot python3-certbot-dns-cloudflare\n"
     return 0
   else
     show_error "please run command manually: ${package_manager} certbot python3-certbot-dns-cloudflare\n"
@@ -223,7 +223,7 @@ install_certbot_binary() {
   fi
 }
 
-certbot_apply_certificate() {
+apply_certificate() {
   local dns_token_path
 
   # apply certificate using cloudflare's dns verification
@@ -231,20 +231,16 @@ certbot_apply_certificate() {
 
   install_content_with_comment 600 "root:root" "dns_cloudflare_api_token=${user_token}" "${dns_token_path}" true
 
-  show_info "register ${user_email} for certbot\n"
-  certbot register --email "${user_email}" --no-eff-email &>/dev/null <<<'Y' || {
-    show_warn "certbot register --email "${user_email}" --no-eff-email failed to execute\n"
-    show_warn "unregister old user for certbot\n"
-    certbot unregister &>/dev/null <<<'D' || {
-      show_error "please run command manually: certbot certbot register --email ${user_email} --no-eff-email <<<'Y'\n"
-      return 1
-    }
+  show_info "checking whether /etc/letsencrypt/live/${user_domain} exist"
+  [[ -e "/etc/letsencrypt/live/${user_domain}" ]] && {
+    show_warn "/etc/letsencrypt/live/${user_domain} is exist"
+    return 0
   }
-  show_success "successfully registered ${user_email}\n"
+  show_info "/etc/letsencrypt/live/${user_domain} not exist"
 
   show_info "applying certificate for ${user_domain} *.${user_domain}\n"
-  certbot certonly --dns-cloudflare --dns-cloudflare-credentials "${dns_token_path}" -d "${user_domain}" -d "*.${user_domain}" --dry-run &>/dev/null || {
-    show_error "please run command manually: certbot certonly --dns-cloudflare --dns-cloudflare-credentials "${dns_token_path}" -d "${user_domain}" -d "*.${user_domain}"\n"
+  certbot certonly --dns-cloudflare --email ${user_email} --dns-cloudflare-credentials "${dns_token_path}" -d "${user_domain}" -d "*.${user_domain}" &>/dev/null <<<'Y' || {
+    show_error "please run command manually: certbot certonly --dns-cloudflare --email ${user_email} --dns-cloudflare-credentials "${dns_token_path}" -d "${user_domain}" -d "*.${user_domain}"\n"
     return 1
   }
   show_success "successfully applyed and saved at /etc/letsencrypt/live/${user_domain}\n"
@@ -467,7 +463,7 @@ EOF
 }
 
 install_nginx_binary() {
-  show_info "detecting the status of nginx - "
+  show_info "checking the status of nginx - "
   type -t nginx &>/dev/null && {
     show_text "installed\n"
     return 0
@@ -613,7 +609,7 @@ EOF
 install_sing-box_binary() {
   local latest_release latest_version package_name download_url
 
-  show_info "detecting the status of sing-box ... "
+  show_info "checking the status of sing-box ... "
   type -t sing-box &>/dev/null && {
     show_text "installed\n"
     return 0
@@ -670,21 +666,21 @@ modofy_sing-box_default() {
 
 # NOTE: Main program entry
 # Input personal information
-read -e -p "email: " user_email
-read -e -p "username: " user_name
-read -e -p "domain name: " user_domain
-read -e -p "cloudflare token: " user_token
+read -e -p "email: " user_email </dev/tty
+read -e -p "username: " user_name </dev/tty
+read -e -p "domain name: " user_domain </dev/tty
+read -e -p "cloudflare token: " user_token </dev/tty
 
 # Generate global configuration information
 user_uuid=$(uuidgen -r)
 user_password=$(generate_random_password)
-certificate_path="/etc/letsencrypt/live/${user_domain}/fullchain.pem",
+certificate_path="/etc/letsencrypt/live/${user_domain}/fullchain.pem"
 certificate_key_path="/etc/letsencrypt/live/${user_domain}/privkey.pem"
 
 # Install certbot using package manager
 install_certbot_binary
 # Apply for let's encrypt certificate using cloudfalre's dns service
-certbot_apply_certificate
+apply_certificate
 
 # Install nginx using package manager
 install_nginx_binary
