@@ -574,7 +574,7 @@ genetate_sing-box_config() {
     {
       "type": "hysteria2",
       "listen": "::",
-      "listen_port": 8080,
+      "listen_port": 8053,
       "users": [
         {
           "name": "${user_name}",
@@ -659,7 +659,7 @@ show_info "please input your personal information as prompted\n"
 show_text "please input your email: "
 user_email=$(get_input_single)
 show_text "please input your username: "
-ser_name=$(get_input_single)
+user_name=$(get_input_single)
 show_text "please input your cloudflare token: "
 user_token=$(get_input_single)
 show_text "please input domain that resolves to ${user_ip:-localhost}: "
