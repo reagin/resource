@@ -161,6 +161,43 @@ remove_content_with_comment() {
 }
 
 # -------------------------------------------------------------------
+# get_global_ip
+#
+# Description:
+#   Retrieves the public/global IP address of the current machine by
+#   querying an external API.
+#
+# Returns:
+#   The global IP address to stdout
+#
+# Usage:
+#   get_global_ip
+# -------------------------------------------------------------------
+get_global_ip() {
+  printf "$(curl -fsSL https://api.ip.sb/ip -A Mozilla 2>/dev/null)"
+}
+
+# -------------------------------------------------------------------
+# get_input_single
+#
+# Description:
+#   Prompts the user for input with a given message and returns the
+#   input.
+#
+# Arguments:
+#   $1 - Prompt message to display to the user
+#
+# Usage:
+#   get_input_single "prompt information"
+# -------------------------------------------------------------------
+get_input_single() {
+  local input_message
+
+  read -e -p "${1:-}" input_message </dev/tty
+  printf "${input_message}"
+}
+
+# -------------------------------------------------------------------
 # generate_random_password
 #
 # Description:
@@ -178,5 +215,5 @@ generate_random_password() {
   local random_password
 
   random_password=$(dd if=/dev/random bs=32 count=1 status=none | tr -d '\0')
-  echo -n "$random_password" | md5sum | awk '{print $1}'
+  printf "$random_password" | md5sum | awk '{print $1}'
 }

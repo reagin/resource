@@ -231,16 +231,16 @@ apply_certificate() {
 
   install_content_with_comment 600 "root:root" "dns_cloudflare_api_token=${user_token}" "${dns_token_path}" true
 
-  show_info "checking whether /etc/letsencrypt/live/${user_domain} exist"
+  show_info "checking whether /etc/letsencrypt/live/${user_domain} exist\n"
   [[ -e "/etc/letsencrypt/live/${user_domain}" ]] && {
-    show_warn "/etc/letsencrypt/live/${user_domain} is exist"
+    show_warn "/etc/letsencrypt/live/${user_domain} is exist\n"
     return 0
   }
-  show_info "/etc/letsencrypt/live/${user_domain} not exist"
+  show_info "/etc/letsencrypt/live/${user_domain} not exist\n"
 
-  show_info "applying certificate for ${user_domain} *.${user_domain}\n"
-  certbot certonly --dns-cloudflare --email ${user_email} --dns-cloudflare-credentials "${dns_token_path}" -d "${user_domain}" -d "*.${user_domain}" &>/dev/null <<<'Y' || {
-    show_error "please run command manually: certbot certonly --dns-cloudflare --email ${user_email} --dns-cloudflare-credentials "${dns_token_path}" -d "${user_domain}" -d "*.${user_domain}"\n"
+  show_info "applying certificate for ${user_domains}\n"
+  certbot certonly --dns-cloudflare --email ${user_email} --dns-cloudflare-credentials "${dns_token_path}" -d "${user_domains}" &>/dev/null <<<'Y' || {
+    show_error "please run command manually: certbot certonly --dns-cloudflare --email ${user_email} --dns-cloudflare-credentials "${dns_token_path}" -d "${user_domains}"\n"
     return 1
   }
   show_success "successfully applyed and saved at /etc/letsencrypt/live/${user_domain}\n"
@@ -329,23 +329,11 @@ server {
     include             nginxconfig.io/general.conf;
 }
 
-# subdomains redirect
-server {
-    listen              443 ssl http2;
-    listen              [::]:443 ssl http2;
-    server_name         *.${user_domain};
-
-    # SSL
-    ssl_certificate     ${certificate_path};
-    ssl_certificate_key ${certificate_key_path};
-    return              301 https://${user_domain}\$request_uri;
-}
-
 # HTTP redirect
 server {
     listen      80;
     listen      [::]:80;
-    server_name .${user_domain};
+    server_name ${user_domain};
     return      301 https://${user_domain}\$request_uri;
 }
 EOF
@@ -402,7 +390,7 @@ EOF
 
 generate_nginxconfig_href() {
   cat <<EOF
-https://www.digitalocean.com/community/tools/nginx?domains.0.https.certType=custom&domains.0.https.sslCertificate=%2Fetc%2Fletsencrypt%2Flive%2Fexample.com%2Ffullchain.pem&domains.0.https.sslCertificateKey=%2Fetc%2Fletsencrypt%2Flive%2Fexample.com%2Fprivkey.pem&domains.0.php.php=false&domains.0.routing.index=index.html&domains.0.routing.fallbackPhp=false&global.https.ocspOpenDns=false&global.security.referrerPolicy=strict-origin-when-cross-origin&global.nginx.user=nginx&global.app.lang=zhCN
+https://www.digitalocean.com/community/tools/nginx?domains.0.server.redirectSubdomains=false&domains.0.https.certType=custom&domains.0.https.sslCertificate=%2Fetc%2Fletsencrypt%2Flive%2Fexample.com%2Ffullchain.pem&domains.0.https.sslCertificateKey=%2Fetc%2Fletsencrypt%2Flive%2Fexample.com%2Fprivkey.pem&domains.0.php.php=false&domains.0.routing.index=index.html&domains.0.routing.fallbackPhp=false&global.https.ocspOpenDns=false&global.security.referrerPolicy=strict-origin-when-cross-origin&global.nginx.user=nginx&global.app.lang=zhCN
 EOF
 }
 
@@ -480,7 +468,7 @@ install_nginx_binary() {
   fi
 }
 
-modofy_nginx_default() {
+modify_nginx_default() {
   local user_id group_id
 
   # Get old uid and gid from /etc/passwd
@@ -653,7 +641,7 @@ install_sing-box_binary() {
   fi
 }
 
-modofy_sing-box_default() {
+modify_sing-box_default() {
   install_content_with_comment 644 "root:root" "$(genetate_sing-box_config)" "/etc/sing-box/config.json" true
   # Add system services for sing-box and start services
   show_info "adding system services for sing-box and start services\n"
@@ -664,13 +652,26 @@ modofy_sing-box_default() {
   show_success "successfully added system services for sing-box\n"
 }
 
-# NOTE: Main program entry
+# Main program entry
+user_ip=$(get_global_ip)
 # Input personal information
-read -e -p "email: " user_email </dev/tty
-read -e -p "username: " user_name </dev/tty
-read -e -p "domain name: " user_domain </dev/tty
-read -e -p "cloudflare token: " user_token </dev/tty
-
+show_info "please input your personal information as prompted\n"
+show_text "please input your email: "
+user_email=$(get_input_single)
+show_text "please input your username: "
+ser_name=$(get_input_single)
+show_text "please input your cloudflare token: "
+user_token=$(get_input_single)
+show_text "please input domain that resolves to ${user_ip:-localhost}: "
+user_domains=$(get_input_single)
+# Check if the user's input is correct
+if [[ -z user_email || -z user_name || -z user_token || -z user_domain ]]; then
+  show_error "please confirm that the input is not empty\n"
+fi
+# Extract the first domain name from user input
+user_domain="${user_domains%%[|[:space:]]*}"
+# Normalize the domain name entered by the user
+user_domains="$(sed -E 's/[|[:space:]]+/,/Ig' <<<"${user_domains}")"
 # Generate global configuration information
 user_uuid=$(uuidgen -r)
 user_password=$(generate_random_password)
@@ -685,12 +686,12 @@ apply_certificate
 # Install nginx using package manager
 install_nginx_binary
 # Delete nginx's default user, group and modify the default configuration of nginx
-modofy_nginx_default
+modify_nginx_default
 
 # Install sing-box using package installer
 install_sing-box_binary
 # Overwrite sing-box configuration file
-modofy_sing-box_default
+modify_sing-box_default
 
 # simple print
 show_text "user_uuid: ${user_uuid}\n"
