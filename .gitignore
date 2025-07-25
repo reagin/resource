@@ -1,0 +1,2 @@
+# Save temporary files that don't want to track
+temporary/**
