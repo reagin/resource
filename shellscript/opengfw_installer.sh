@@ -87,8 +87,8 @@ check_environment() {
 check_dependencies() {
   local command_dependency package_dependency
 
-  command_dependency=("curl" "openssl" "sed" "grep" "awk" "mktemp" "systemctl" "adduser" "uuidgen")
-  package_dependency=("curl" "openssl" "sed" "grep" "gawk" "coreutils" "systemd" "passwd" "uuid-runtime")
+  command_dependency=('curl' 'openssl' 'sed' 'grep' 'awk' 'mktemp' 'systemctl' 'adduser')
+  package_dependency=('curl' 'openssl' 'sed' 'grep' 'gawk' 'coreutils' 'systemd' 'passwd')
 
   if [[ ${#command_dependency[@]} == 0 ]]; then
     return 0
@@ -123,8 +123,8 @@ source_external_scripts() {
   command_dependency=()
   package_dependency=()
   external_script_links=(
-    'https://cdn.jsdelivr.net/gh/rehuony/resource@main/shellscript/library/message.lib.sh'
-    'https://cdn.jsdelivr.net/gh/rehuony/resource@main/shellscript/library/utility.lib.sh'
+    'https://raw.githubusercontent.com/rehuony/resource/refs/heads/main/shellscript/library/message.lib.sh'
+    'https://raw.githubusercontent.com/rehuony/resource/refs/heads/main/shellscript/library/utility.lib.sh'
   )
 
   if [[ ${#external_script_links[@]} == 0 ]]; then
@@ -673,7 +673,7 @@ user_domain="${user_domains%%[|[:space:]]*}"
 # Normalize the domain name entered by the user
 user_domains="$(sed -E 's/[|[:space:]]+/,/Ig' <<<"${user_domains}")"
 # Generate global configuration information
-user_uuid=$(uuidgen -r)
+user_uuid=$(generate_random_uuid)
 user_password=$(generate_random_password)
 certificate_path="/etc/letsencrypt/live/${user_domain}/fullchain.pem"
 certificate_key_path="/etc/letsencrypt/live/${user_domain}/privkey.pem"

@@ -12,8 +12,8 @@
 # -o pipefail: When any command in the pipeline fails, the entire pipeline returns to a failed state
 set -Eeuo pipefail
 
-lib_command_dependency=(awk md5sum)
-lib_package_dependency=(gawk coreutils)
+lib_command_dependency=('awk' 'md5sum' 'uuidgen')
+lib_package_dependency=('gawk' 'coreutils' 'uuid-runtime')
 
 # -------------------------------------------------------------------
 # install_content
@@ -178,7 +178,7 @@ get_global_ip() {
 }
 
 # -------------------------------------------------------------------
-# get_input_single
+# get_input_message
 #
 # Description:
 #   Prompts the user for input with a given message and returns the
@@ -188,13 +188,30 @@ get_global_ip() {
 #   $1 - Prompt message to display to the user
 #
 # Usage:
-#   get_input_single "prompt information"
+#   get_input_message "prompt information"
 # -------------------------------------------------------------------
-get_input_single() {
+get_input_message() {
   local input_message
 
   read -e -p "${1:-}" input_message </dev/tty
   printf "${input_message}"
+}
+
+# -------------------------------------------------------------------
+# generate_random_uuid
+#
+# Description:
+#   Generates a random UUID (Universally Unique Identifier) using the
+#   uuidgen command with the -r flag to produce a random-based UUID
+#
+# Returns:
+#   The generated UUID to stdout
+#
+# Usage:
+#   generate_random_uuid
+# -------------------------------------------------------------------
+generate_random_uuid() {
+  printf "$(uuidgen -r)"
 }
 
 # -------------------------------------------------------------------

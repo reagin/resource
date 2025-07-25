@@ -123,7 +123,7 @@ source_external_scripts() {
   command_dependency=()
   package_dependency=()
   external_script_links=(
-    'https://cdn.jsdelivr.net/gh/rehuony/resource@main/shellscript/library/utility.lib.sh'
+    'https://raw.githubusercontent.com/rehuony/resource/refs/heads/main/shellscript/library/utility.lib.sh'
   )
 
   if [[ ${#external_script_links[@]} == 0 ]]; then
@@ -212,6 +212,7 @@ EOF
 generate_alias_config() {
   cat <<EOF
 alias cls='clear'
+alias quit='rm -f ~/.bash_history && history -c && exit'
 EOF
 }
 
