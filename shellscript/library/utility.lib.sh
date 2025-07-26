@@ -12,8 +12,8 @@
 # -o pipefail: When any command in the pipeline fails, the entire pipeline returns to a failed state
 set -Eeuo pipefail
 
-lib_command_dependency=('awk' 'md5sum' 'uuidgen')
-lib_package_dependency=('gawk' 'coreutils' 'uuid-runtime')
+lib_command_dependency=('grep' 'awk' 'md5sum' 'uuidgen')
+lib_package_dependency=('grep' 'gawk' 'coreutils' 'uuid-runtime')
 
 # -------------------------------------------------------------------
 # install_content
@@ -95,7 +95,7 @@ install_content() {
 #   install_content_with_comment 644 "root:root" "content" "/path/to/destination"
 # -------------------------------------------------------------------
 install_content_with_comment() {
-  printf "\e[38;2;0;135;215m[INFO]\e[0m \e[2minstalling content for ${4} ...\n\e[0m"
+  printf "\e[38;2;0;135;215m[INFO]\e[0m \e[2minstalling content for ${4}\n\e[0m"
   if install_content "${@}"; then
     printf "\e[38;2;0;175;0m[SUCCESS]\e[0m \e[2minstalled content for ${4}\n\e[0m"
   elif [[ "$?" == 2 ]]; then
@@ -143,7 +143,7 @@ remove_content() {
 #
 # Description:
 #   Calls remove_content to remove the specified file or directory at
-#   the given absolute path, and prints status messages to the console.
+#   the given absolute path, and prints status messages to the console
 #
 # Arguments:
 #   $1 - Absolute path to the file or directory to remove
@@ -152,7 +152,7 @@ remove_content() {
 #   remove_content_with_comment "/path/to/destination"
 # -------------------------------------------------------------------
 remove_content_with_comment() {
-  printf "\e[38;2;0;135;215m[INFO]\e[0m \e[2mremoving content for ${1} ...\n\e[0m"
+  printf "\e[38;2;0;135;215m[INFO]\e[0m \e[2mremoving content for ${1}\n\e[0m"
   if remove_content "$1"; then
     printf "\e[38;2;0;175;0m[SUCCESS]\e[0m \e[2mremoved content for ${1}\n\e[0m"
   else
@@ -161,11 +161,49 @@ remove_content_with_comment() {
 }
 
 # -------------------------------------------------------------------
+# load_ini_config
+#
+# Description:
+#   Loads the value of a given key from an INI-style configuration
+#   file. Ignores commented lines and trims whitespace. Only supports
+#   simple key=value pairs (no section support)
+#
+# Arguments:
+#   $1 - Key to search
+#   $2 - Path to the INI configuration file
+#
+# Returns:
+#   The value of the key to stdout, or nothing if not found
+#
+# Usage:
+#   load_ini_config "key" "/path/to/config.ini"
+# -------------------------------------------------------------------
+load_ini_config() {
+  local ini_key ini_path
+
+  ini_key="${1:-}"
+  ini_path="${2:-}"
+
+  awk -F '=' -v search_key="${ini_key}" '
+    /^[[:space:]]*#/ { next }           # Skip comments
+    /^[[:space:]]*$/ { next }           # Skip empty lines
+    {
+      gsub(/^[ \t]+|[ \t]+$/, "", $1)   # Trim whitespace from key
+      gsub(/^[ \t]+|[ \t]+$/, "", $2)   # Trim whitespace from value
+      if ($1 == search_key) {
+        print $2
+        exit
+      }
+    }
+  ' "${ini_path}"
+}
+
+# -------------------------------------------------------------------
 # get_global_ip
 #
 # Description:
 #   Retrieves the public/global IP address of the current machine by
-#   querying an external API.
+#   querying an external API
 #
 # Returns:
 #   The global IP address to stdout
@@ -182,19 +220,69 @@ get_global_ip() {
 #
 # Description:
 #   Prompts the user for input with a given message and returns the
-#   input.
+#   input
 #
 # Arguments:
 #   $1 - Prompt message to display to the user
+#
+# Returns:
+#   The user input
 #
 # Usage:
 #   get_input_message "prompt information"
 # -------------------------------------------------------------------
 get_input_message() {
-  local input_message
+  local prompt input_message
 
-  read -e -p "${1:-}" input_message </dev/tty
-  printf "${input_message}"
+  prompt="${1:-}"
+
+  read -e -p "${prompt}" input_message </dev/tty
+  printf "%s" "${input_message}"
+}
+
+# -------------------------------------------------------------------
+# get_input_until_success
+#
+# Description:
+#   Continuously prompts the user for input with a given message
+#   until valid input is provided. Optionally validates the input
+#   against a regular expression and displays a custom error message
+#   if validation fails
+#
+# Arguments:
+#   $1 - Prompt message to display to the user
+#   $2 - (Optional) Regular expression to validate the input
+#   $3 - (Optional) Error message to display if validation fails
+#
+# Returns:
+#   Echoes the valid user input to stdout
+#
+# Usage:
+#   get_input_until_success "Enter your name: "
+#   get_input_until_success "Enter a number: " '^[0-9]+$' "Input must be a number"
+# -------------------------------------------------------------------
+get_input_until_success() {
+  local prompt validate error_msg input_message
+
+  prompt="${1:-}"
+  validate="${2:-}"
+  error_msg="${3:-}"
+
+  while read -e -p "${prompt}" input_message </dev/tty; do
+    if [[ -z "${input_message}" ]]; then
+      printf "\e[38;2;215;215;95minput cannot be empty, please try again\n\e[0m" >&2
+      continue
+    elif [[ -n "${validate}" ]]; then
+      if ! echo "$input_message" | grep -Pq "$validate"; then
+        printf "\e[38;2;215;215;95m${error_msg}\n\e[0m" >&2
+        continue
+      fi
+    fi
+
+    break
+  done
+
+  printf "%s" "${input_message}"
 }
 
 # -------------------------------------------------------------------
@@ -211,7 +299,7 @@ get_input_message() {
 #   generate_random_uuid
 # -------------------------------------------------------------------
 generate_random_uuid() {
-  printf "$(uuidgen -r)"
+  printf "%s" "$(uuidgen -r)"
 }
 
 # -------------------------------------------------------------------
@@ -232,5 +320,5 @@ generate_random_password() {
   local random_password
 
   random_password=$(dd if=/dev/random bs=32 count=1 status=none | tr -d '\0')
-  printf "$random_password" | md5sum | awk '{print $1}'
+  printf "%s" "$random_password" | md5sum | awk '{print $1}'
 }

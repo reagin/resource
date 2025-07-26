@@ -204,6 +204,73 @@ check_dependencies
 # Source external script resources
 source_external_scripts
 
+# NOTE: Define global variables
+declare user_ip
+declare user_uuid
+declare user_name
+declare user_email
+declare user_domain
+declare user_password
+declare cloudflare_token
+declare global_config_path='/etc/letsencrypt/cloudfalre.ini'
+
+declare certificate_path
+declare certificate_key_path
+
+# NOTE: Loading the configuration file
+generate_global_config() {
+  cat <<EOF
+user_uuid=${user_uuid}
+user_name=${user_name}
+user_email=${user_email}
+user_domain=${user_domain}
+user_password=${user_password}
+dns_cloudflare_api_token=${cloudflare_token}
+EOF
+}
+
+load_global_config() {
+  user_ip=$(get_global_ip)
+
+  if [[ -f "${global_config_path}" ]]; then
+    show_info "loading data from configuration: ${global_config_path}\n"
+
+    user_uuid=$(load_ini_config 'user_uuid' "${global_config_path}")
+    user_name=$(load_ini_config 'user_name' "${global_config_path}")
+    user_email=$(load_ini_config 'user_email' "${global_config_path}")
+    user_domain=$(load_ini_config 'user_domain' "${global_config_path}")
+    user_password=$(load_ini_config 'user_password' "${global_config_path}")
+    cloudflare_token=$(load_ini_config 'dns_cloudflare_api_token' "${global_config_path}")
+
+    if [[ -z "${user_uuid}" || -z "${user_name}" || -z "${user_email}" || -z "${user_domain}" || -z "${user_password}" || -z "${cloudflare_token}" ]]; then
+      show_error "there is an error in the configuration file, please repair the configuration file: ${global_config_path}\n"
+      return 1
+    fi
+  else
+    show_info "please input your personal information as prompted\n"
+
+    user_uuid=$(
+      get_input_until_success "please input your uuid: " \
+        '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$' \
+        "please type uuid in the following format: $(generate_random_uuid)"
+    )
+    user_name=$(get_input_until_success "please input your name: ")
+    user_email=$(get_input_until_success "please input your email: ")
+    user_domain=$(get_input_until_success "please input your domain: ")
+    user_password=$(
+      get_input_until_success "please input your password: " \
+        '^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d!@#$%^&*()_+\-=\[\]{};:"\\|,.<>\/?]{8,}$' \
+        "password must be at least 8 characters, contain letters and numbers: $(generate_random_password)"
+    )
+    cloudflare_token=$(get_input_until_success "please input your cloudflare token: ")
+
+    install_content_with_comment 600 "rehug:rehug" "$(generate_global_config)" "${global_config_path}" true
+  fi
+
+  certificate_path="/etc/letsencrypt/live/${user_domain}/fullchain.pem"
+  certificate_key_path="/etc/letsencrypt/live/${user_domain}/privkey.pem"
+}
+
 # NOTE: Install certbot and apply for a certificate for user's domain
 install_certbot_binary() {
   show_info "checking the status of certbot - "
@@ -224,13 +291,6 @@ install_certbot_binary() {
 }
 
 apply_certificate() {
-  local dns_token_path
-
-  # apply certificate using cloudflare's dns verification
-  dns_token_path="/etc/letsencrypt/cloudflare.ini"
-
-  install_content_with_comment 600 "root:root" "dns_cloudflare_api_token=${user_token}" "${dns_token_path}" true
-
   show_info "checking whether /etc/letsencrypt/live/${user_domain} exist\n"
   [[ -e "/etc/letsencrypt/live/${user_domain}" ]] && {
     show_warn "/etc/letsencrypt/live/${user_domain} is exist\n"
@@ -238,9 +298,9 @@ apply_certificate() {
   }
   show_info "/etc/letsencrypt/live/${user_domain} not exist\n"
 
-  show_info "applying certificate for ${user_domains}\n"
-  certbot certonly --dns-cloudflare --email ${user_email} --dns-cloudflare-credentials "${dns_token_path}" -d "${user_domains}" &>/dev/null <<<'Y' || {
-    show_error "please run command manually: certbot certonly --dns-cloudflare --email ${user_email} --dns-cloudflare-credentials "${dns_token_path}" -d "${user_domains}"\n"
+  show_info "applying certificate for ${user_domain}: certbot certonly --dns-cloudflare --email ${user_email} --dns-cloudflare-credentials ${global_config_path} -d ${user_domain}\n"
+  certbot certonly --dns-cloudflare --email "${user_email}" --dns-cloudflare-credentials "${global_config_path}" -d "${user_domain}" &>/dev/null <<<'Y' || {
+    show_error "please run command manually: certbot certonly --dns-cloudflare --email ${user_email} --dns-cloudflare-credentials ${global_config_path} -d ${user_domain}\n"
     return 1
   }
   show_success "successfully applyed and saved at /etc/letsencrypt/live/${user_domain}\n"
@@ -286,7 +346,7 @@ http {
     ssl_session_cache      shared:SSL:10m;
     ssl_session_tickets    off;
 
-    # Diffie-Hellman parameter for DHE ciphersuites
+    # diffie-hellman parameter for DHE ciphersuites
     ssl_dhparam            /etc/nginx/dhparam.pem;
 
     # Mozilla Intermediate configuration
@@ -316,7 +376,7 @@ server {
 
     # SSL
     ssl_certificate     ${certificate_path};
-    ssl_certificate_key ${certificate_key_path};
+    ssl_certificate_key ${certificate_key_path}
 
     # security
     include             nginxconfig.io/security.conf;
@@ -469,11 +529,18 @@ install_nginx_binary() {
 }
 
 modify_nginx_default() {
-  local user_id group_id
+  local user_id group_id nginx_name
 
-  # Get old uid and gid from /etc/passwd
-  user_id=$(awk -F: '$1~/(nginx|www-data)/ {print $3}' /etc/passwd)
-  group_id=$(awk -F: '$1~/(nginx|www-data)/ {print $4}' /etc/passwd)
+  # Get the name of the old nginx user
+  nginx_name=$(awk -F: '$1~/(nginx|www-data)/ {print $1; exit}' /etc/passwd)
+  # Get old uid and gid by old name
+  user_id=$(awk -F: -v name="$nginx_name" '$1==name {print $3; exit}' /etc/passwd)
+  group_id=$(awk -F: -v name="$nginx_name" '$1==name {print $4; exit}' /etc/passwd)
+
+  if [[ -z "$nginx_name" || -z "$user_id" || -z "$group_id" ]]; then
+    show_error "nginx or www-data user not found in /etc/passwd\n"
+    return 1
+  fi
 
   show_info "stopping nginx.service\n"
   systemctl stop nginx.service &>/dev/null || {
@@ -482,19 +549,12 @@ modify_nginx_default() {
   }
   show_success "successfully closed nginx.service\n"
 
-  show_info "deleting old user named nginx\n"
-  if deluser --remove-all-files nginx &>/dev/null; then
-    show_success "successfully deleted user named nginx\n"
-  else
-    show_warn "user named nginx does not exist\n"
-  fi
-
-  show_info "deleting old user named www-data\n"
-  if deluser --remove-all-files www-data &>/dev/null; then
-    show_success "successfully deleted user named www-data\n"
-  else
-    show_warn "user named www-data does not exist\n"
-  fi
+  show_info "deleting old user named ${nginx_name}\n"
+  deluser --remove-all-files ${nginx_name} &>/dev/null || {
+    show_error "delete ${nginx_name} error\n"
+    return 1
+  }
+  show_success "successfully deleted user named ${nginx_name}\n"
 
   show_info "creating new group named nginx\n"
   addgroup --system --gid "${group_id}" nginx &>/dev/null || {
@@ -514,12 +574,28 @@ modify_nginx_default() {
   remove_content_with_comment "/etc/nginx/sites-enabled"
   remove_content_with_comment "/etc/nginx/sites-available"
 
-  show_info "generating diffie-hellman keys at /etc/nginx/dhparam.pem\n"
-  openssl dhparam -out /etc/nginx/dhparam.pem 2048 &>/dev/null || {
-    show_error "failed to generate diffie-hellman keys\n"
-    return 1
-  }
-  show_success "successfully generated diffie-hellman keys\n"
+  show_info "checking for diffie-hellman key at /etc/nginx/dhparam.pem\n"
+  if [[ -f "/etc/nginx/dhparam.pem" ]]; then
+    if openssl dhparam -check -in /etc/nginx/dhparam.pem &>/dev/null; then
+      show_success "valid diffie-hellman key already exists at /etc/nginx/dhparam.pem\n"
+    else
+      show_warn "existing /etc/nginx/dhparam.pem is invalid, regenerating...\n"
+      if openssl dhparam -out /etc/nginx/dhparam.pem 2048 &>/dev/null; then
+        show_success "successfully regenerated diffie-hellman key\n"
+      else
+        show_error "failed to regenerate diffie-hellman key\n"
+        return 1
+      fi
+    fi
+  else
+    show_info "diffie-hellman key not found, generating...\n"
+    if openssl dhparam -out /etc/nginx/dhparam.pem 2048 &>/dev/null; then
+      show_success "successfully generated diffie-hellman key\n"
+    else
+      show_error "failed to generate diffie-hellman key\n"
+      return 1
+    fi
+  fi
 
   install_content_with_comment 644 "root:root" "$(generate_nginx_conf)" "/etc/nginx/nginx.conf" true
   install_content_with_comment 644 "root:root" "$(generate_domain_conf)" "/etc/nginx/sites-available/${user_domain}.conf" true
@@ -553,14 +629,13 @@ genetate_sing-box_config() {
   },
   "inbounds": [
     {
-      "type": "vless",
+      "type": "trojan",
       "listen": "::",
-      "listen_port": 8443,
+      "listen_port": 8080,
       "users": [
         {
           "name": "${user_name}",
-          "uuid": "${user_uuid}",
-          "flow": "xtls-rprx-vision"
+          "password": "${user_password}"
         }
       ],
       "tls": {
@@ -569,6 +644,9 @@ genetate_sing-box_config() {
         "alpn": ["h3", "h2", "http/1.1"],
         "certificate_path": "${certificate_path}",
         "key_path": "${certificate_key_path}"
+      },
+      "multiplex": {
+        "enabled": true
       }
     },
     {
@@ -632,18 +710,12 @@ install_sing-box_binary() {
   show_success "successfully saved package to ${TEMPDIRECTORY}/${package_name}\n"
 
   show_info "executing command: ${package_installer} ${package_name}\n"
-  if sh -c "${package_installer} ${package_name}" &>/dev/null; then
-    show_success "successfully installed sing-box\n"
-    return 0
-  else
+  sh -c "${package_installer} ${package_name}" &>/dev/null || {
     show_error "failed to install sing-box\n"
     return 1
-  fi
-}
+  }
+  show_success "successfully installed sing-box\n"
 
-modify_sing-box_default() {
-  install_content_with_comment 644 "root:root" "$(genetate_sing-box_config)" "/etc/sing-box/config.json" true
-  # Add system services for sing-box and start services
   show_info "adding system services for sing-box and start services\n"
   systemctl enable sing-box &>/dev/null && systemctl start sing-box &>/dev/null || {
     show_error "failed to add system services for sing-box\n"
@@ -652,47 +724,29 @@ modify_sing-box_default() {
   show_success "successfully added system services for sing-box\n"
 }
 
-# Main program entry
-user_ip=$(get_global_ip)
-# Input personal information
-show_info "please input your personal information as prompted\n"
-show_text "please input your email: "
-user_email=$(get_input_single)
-show_text "please input your username: "
-user_name=$(get_input_single)
-show_text "please input your cloudflare token: "
-user_token=$(get_input_single)
-show_text "please input domain that resolves to ${user_ip:-localhost}: "
-user_domains=$(get_input_single)
-# Check if the user's input is correct
-if [[ -z user_email || -z user_name || -z user_token || -z user_domain ]]; then
-  show_error "please confirm that the input is not empty\n"
-fi
-# Extract the first domain name from user input
-user_domain="${user_domains%%[|[:space:]]*}"
-# Normalize the domain name entered by the user
-user_domains="$(sed -E 's/[|[:space:]]+/,/Ig' <<<"${user_domains}")"
-# Generate global configuration information
-user_uuid=$(generate_random_uuid)
-user_password=$(generate_random_password)
-certificate_path="/etc/letsencrypt/live/${user_domain}/fullchain.pem"
-certificate_key_path="/etc/letsencrypt/live/${user_domain}/privkey.pem"
+modify_sing-box_default() {
+  install_content_with_comment 644 "root:root" "$(genetate_sing-box_config)" "/etc/sing-box/config.json" true
+  # Restart sing-box system service
+  show_info "restarting sing-box system service\n"
+  systemctl start sing-box &>/dev/null || {
+    show_error "failed to restart system services for sing-box\n"
+    return 1
+  }
+  show_success "successfully restarted system services for sing-box\n"
+}
 
-# Install certbot using package manager
+# NOTE: Main program entry
+# Loading the configuration file
+load_global_config
+# Install certbot
 install_certbot_binary
-# Apply for let's encrypt certificate using cloudfalre's dns service
+# Apply for a certificate for the domain name
 apply_certificate
-
-# Install nginx using package manager
+# Install nginx
 install_nginx_binary
-# Delete nginx's default user, group and modify the default configuration of nginx
+# Modify the default configuration of nginx
 modify_nginx_default
-
-# Install sing-box using package installer
+# Install sing-box
 install_sing-box_binary
-# Overwrite sing-box configuration file
+# Modify the default configuration file of sing-box
 modify_sing-box_default
-
-# simple print
-show_text "user_uuid: ${user_uuid}\n"
-show_text "user_password: ${user_password}\n"
