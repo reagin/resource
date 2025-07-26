@@ -206,7 +206,6 @@ source_external_scripts
 
 # NOTE: Define global variables
 declare user_ip
-declare user_uuid
 declare user_name
 declare user_email
 declare user_domain
@@ -220,7 +219,6 @@ declare certificate_key_path
 # NOTE: Loading the configuration file
 generate_global_config() {
   cat <<EOF
-user_uuid=${user_uuid}
 user_name=${user_name}
 user_email=${user_email}
 user_domain=${user_domain}
@@ -235,25 +233,19 @@ load_global_config() {
   if [[ -f "${global_config_path}" ]]; then
     show_info "loading data from configuration: ${global_config_path}\n"
 
-    user_uuid=$(load_ini_config 'user_uuid' "${global_config_path}")
     user_name=$(load_ini_config 'user_name' "${global_config_path}")
     user_email=$(load_ini_config 'user_email' "${global_config_path}")
     user_domain=$(load_ini_config 'user_domain' "${global_config_path}")
     user_password=$(load_ini_config 'user_password' "${global_config_path}")
     cloudflare_token=$(load_ini_config 'dns_cloudflare_api_token' "${global_config_path}")
 
-    if [[ -z "${user_uuid}" || -z "${user_name}" || -z "${user_email}" || -z "${user_domain}" || -z "${user_password}" || -z "${cloudflare_token}" ]]; then
+    if [[ -z "${user_name}" || -z "${user_email}" || -z "${user_domain}" || -z "${user_password}" || -z "${cloudflare_token}" ]]; then
       show_error "there is an error in the configuration file, please repair the configuration file: ${global_config_path}\n"
       return 1
     fi
   else
     show_info "please input your personal information as prompted\n"
 
-    user_uuid=$(
-      get_input_until_success "please input your uuid: " \
-        '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$' \
-        "please type uuid in the following format: $(generate_random_uuid)"
-    )
     user_name=$(get_input_until_success "please input your name: ")
     user_email=$(get_input_until_success "please input your email: ")
     user_domain=$(get_input_until_success "please input your domain: ")
@@ -354,8 +346,8 @@ http {
     ssl_ciphers            ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:DHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384;
 
     # OCSP Stapling
-    ssl_stapling           on;
-    ssl_stapling_verify    on;
+    ssl_stapling           off;
+    ssl_stapling_verify    off;
     resolver               1.1.1.1 1.0.0.1 8.8.8.8 8.8.4.4 valid=60s;
     resolver_timeout       2s;
 
