@@ -264,7 +264,7 @@ load_global_config() {
     )
     cloudflare_token=$(get_input_until_success "please input your cloudflare token: ")
 
-    install_content_with_comment 600 "rehug:rehug" "$(generate_global_config)" "${global_config_path}" true
+    install_content_with_comment 600 "root:root" "$(generate_global_config)" "${global_config_path}" true
   fi
 
   certificate_path="/etc/letsencrypt/live/${user_domain}/fullchain.pem"
