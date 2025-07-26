@@ -376,7 +376,7 @@ server {
 
     # SSL
     ssl_certificate     ${certificate_path};
-    ssl_certificate_key ${certificate_key_path}
+    ssl_certificate_key ${certificate_key_path};
 
     # security
     include             nginxconfig.io/security.conf;
@@ -735,6 +735,26 @@ modify_sing-box_default() {
   show_success "successfully restarted system services for sing-box\n"
 }
 
+generate_mihomo_subscription() {
+  local yaml_name mihomo_dir
+
+  yaml_name="mihomo.yaml"
+  mihomo_dir="/var/www/${user_domain}/public/download"
+
+  install_content_with_comment 644 "root:root" "" "${mihomo_dir}/${yaml_name}" true
+
+  show_info "downloading mihomo configuration file template\n"
+  curl -fsSL 'https://raw.githubusercontent.com/rehuony/resource/refs/heads/main/template/config/mihomo.yaml' -o "${mihomo_dir}/${yaml_name}" 2>/dev/null || {
+    show_error "failed to download mihomo configuration file\n"
+    return 1
+  }
+  show_success "successfully download mihomo configuration file\n"
+
+  sed -Ei "s/<<user_ip>>/${user_ip}/Ig" "${mihomo_dir}/${yaml_name}"
+  sed -Ei "s/<<user_domain>>/${user_domain}/Ig" "${mihomo_dir}/${yaml_name}"
+  sed -Ei "s/<<user_password>>/${user_password}/Ig" "${mihomo_dir}/${yaml_name}"
+}
+
 # NOTE: Main program entry
 # Loading the configuration file
 load_global_config
@@ -750,3 +770,5 @@ modify_nginx_default
 install_sing-box_binary
 # Modify the default configuration file of sing-box
 modify_sing-box_default
+# Generate mihomo subscription file
+generate_mihomo_subscription

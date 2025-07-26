@@ -60,7 +60,7 @@ install_content() {
 
   tempfile=$(mktemp -t tempfile_XXXXXX 2>/dev/null) || return 1
 
-  printf '%s\n' "${content}" >"${tempfile}"
+  printf '%s' "${content}" >"${tempfile}"
 
   install -D --mode="${mode}" --owner="${owner}" --group="${group}" --suffix=".bak" "${tempfile}" "${destination}" 2>/dev/null || {
     rm -rf "${tempfile}"
