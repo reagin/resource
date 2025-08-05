@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# opengfw_installer.sh
+# installer_opengfw.sh
 # Author: rehuony
 # Description: Scripts for installing sing-box server agents
 # GitHub: https://github.com/rehuony/resource
