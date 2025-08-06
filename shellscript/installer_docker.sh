@@ -2,7 +2,7 @@
 
 # installer_docker.sh
 # Author: rehuony
-# Description: Install Docker Engine for Ubuntu
+# Description: Install Docker Engine for Linux
 # GitHub: https://github.com/rehuony/resource
 
 # Enable the following shell options:
@@ -204,14 +204,11 @@ check_dependencies
 # Source external script resources
 source_external_scripts
 
-docker_gpg_name="docker-engine.asc"
-docker_gpg_path="/usr/share/keyrings/docker-engine.gpg"
-docker_apt_sources="/etc/apt/sources.list.d/docker-engine.sources"
-
-generate_docker_source() {
+# Ubuntu/Debian installer
+generate_debian_docker_source() {
   cat <<EOF
 Types: deb
-URIs: https://download.docker.com/linux/ubuntu
+URIs: https://download.docker.com/linux/${os_name}
 Suites: $(. /etc/os-release && echo "${UBUNTU_CODENAME:-$VERSION_CODENAME}")
 Components: stable
 Architectures: $(dpkg --print-architecture)
@@ -219,44 +216,67 @@ Signed-By: ${docker_gpg_path}
 EOF
 }
 
-show_info "downloading the gpg key from https://download.docker.com/linux/ubuntu/gpg\n"
-curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o "${docker_gpg_name}" &>/dev/null || {
-  show_error "failed to download the gpg key from https://download.docker.com/linux/ubuntu/gpg\n"
-  return 1
-}
-show_success "successfully download the gpg key from https://download.docker.com/linux/ubuntu/gpg\n"
+debian_docker_installer() {
+  docker_gpg_name="docker-engine.asc"
+  docker_gpg_path="/usr/share/keyrings/docker-engine.gpg"
+  docker_apt_sources="/etc/apt/sources.list.d/docker-engine.sources"
 
-rm -rf "${docker_gpg_path}"
-
-show_info "converting gpg file format by gpg --dearmor -o ${docker_gpg_path} ${docker_gpg_name}\n"
-gpg --dearmor -o "${docker_gpg_path}" "${docker_gpg_name}" &>/dev/null || {
-  show_error "failed to convert gpg file format\n"
-  return 1
-}
-show_success "successfully convert gpg file format\n"
-
-install_content_with_comment 644 "root:root" "$(generate_docker_source)" "${docker_apt_sources}" true
-
-show_info "updating apt repository information\n"
-apt-get update &>/dev/null || {
-  show_error "failed to update apt repository information\n"
-  return 1
-}
-show_success "successfully update apt repository information\n"
-
-show_info "installing docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin\n"
-apt-get install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin -y &>/dev/null || {
-  show_error "failed to install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin\n"
-  return 1
-}
-show_success "successfully install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin\n"
-
-for user_dir in /home/*; do
-  [[ -d "${user_dir}" ]] || {
-    continue
+  show_info "downloading the gpg key from https://download.docker.com/linux/${os_name}/gpg\n"
+  curl -fsSL https://download.docker.com/linux/${os_name}/gpg -o "${docker_gpg_name}" &>/dev/null || {
+    show_error "failed to download the gpg key from https://download.docker.com/linux/${os_name}/gpg\n"
+    return 1
   }
+  show_success "successfully download the gpg key from https://download.docker.com/linux/${os_name}/gpg\n"
 
-  usermod -aG docker "$(basename "${user_dir}")"
-done
+  rm -rf "${docker_gpg_path}"
 
-reboot
+  show_info "converting gpg file format by gpg --dearmor -o ${docker_gpg_path} ${docker_gpg_name}\n"
+  gpg --dearmor -o "${docker_gpg_path}" "${docker_gpg_name}" &>/dev/null || {
+    show_error "failed to convert gpg file format\n"
+    return 1
+  }
+  show_success "successfully convert gpg file format\n"
+
+  install_content_with_comment 644 "root:root" "$(generate_debian_docker_source)" "${docker_apt_sources}" true
+
+  show_info "updating apt repository information\n"
+  apt-get update &>/dev/null || {
+    show_error "failed to update apt repository information\n"
+    return 1
+  }
+  show_success "successfully update apt repository information\n"
+
+  show_info "installing docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin\n"
+  apt-get install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin -y &>/dev/null || {
+    show_error "failed to install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin\n"
+    return 1
+  }
+  show_success "successfully install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin\n"
+
+  for user_dir in /home/*; do
+    [[ -d "${user_dir}" ]] || {
+      continue
+    }
+
+    user_name=$(basename "${user_dir}")
+
+    show_info "adding ${user_name} to the docker group\n"
+    usermod -aG docker "${user_name}" &>/dev/null || {
+      show_error "failed to add ${user_name} to the docker group\n"
+      return 1
+    }
+    show_success "successfully add ${user_name} to the docker group\n"
+  done
+
+  reboot
+}
+
+case "${os_name}" in
+  ubuntu | debian)
+    debian_docker_installer
+    ;;
+  *)
+    show_error "unsupported system for ${os_name}\n"
+    exit 1
+    ;;
+esac
