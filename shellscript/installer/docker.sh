@@ -1,18 +1,18 @@
 #!/usr/bin/env bash
 
-# installer_docker.sh
-# Author: rehuony
-# Description: Install Docker Engine for Linux
-# GitHub: https://github.com/rehuony/resource
+# name: docker.sh
+# author: rehuony
+# github: https://github.com/rehuony/resource
+# description: install docker engine for linux
 
-# Enable the following shell options:
-# -E: Ensure that ERR trap is also valid in function, subshell, and command replacements
-# -e: When any command exits in a non-zero state, exit the script immediately
-# -u: When using undefined variables, the script will report an error and exit
-# -o pipefail: When any command in the pipeline fails, the entire pipeline returns to a failed state
+# enable the following shell options:
+# -E: ensure that err trap is also valid in function, subshell, and command replacements
+# -e: when any command exits in a non-zero state, exit the script immediately
+# -u: when using undefined variables, the script will report an error and exit
+# -o: pipefail: when any command in the pipeline fails, the entire pipeline returns to a failed state
 set -Eeuo pipefail
 
-# Setting up temporary working directory when script runs
+# setting up temporary working directory when script runs
 trap remove_temp_directory EXIT
 
 remove_temp_directory() {
@@ -23,26 +23,26 @@ remove_temp_directory() {
 }
 
 TEMPDIRECTORY=$(mktemp -dt rehuony_directory_XXXXXX 2>/dev/null) || {
-  printf "\e[38;2;215;0;0mError: failed to create temporary directory\e[0m\n"
+  printf "\x1B[38;2;215;0;0mError: failed to create temporary directory\x1B[0m\n"
   exit 1
 }
 
 pushd "${TEMPDIRECTORY}" &>/dev/null || {
-  printf "\e[38;2;215;0;0mError: failed to pushd temporary directory\e[0m\n"
+  printf "\x1B[38;2;215;0;0mError: failed to pushd temporary directory\x1B[0m\n"
   exit 1
 }
 
-# Check whether the execution user is root
+# check whether the execution user is root
 check_permission() {
-  printf "\e[2mCurrent user is: ${USER}\e[0m\n"
+  printf "\x1B[2mcurrent user is: ${USER}\x1B[0m\n"
 
   if [[ "${EUID}" != 0 ]]; then
-    printf "\e[38;2;215;0;0mError: please run the script with root\e[0m\n"
+    printf "\x1B[38;2;215;0;0mError: please run the script with root\x1B[0m\n"
     exit 1
   fi
 }
 
-# Check the environment of the current script
+# check the environment of the current script
 check_environment() {
   [[ -f "/etc/os-release" ]] && source /etc/os-release
 
@@ -75,15 +75,15 @@ check_environment() {
       package_installer="rpm -i"
       ;;
     *)
-      printf "\e[38;2;215;0;0mError: unsupported system for ${os_name}\e[0m\n"
+      printf "\x1B[38;2;215;0;0mError: unsupported system for ${os_name}\x1B[0m\n"
       exit 1
       ;;
   esac
 
-  printf "\e[2mCurrent system is: ${os_arch}_${os_name}_${os_type}\e[0m\n"
+  printf "\x1B[2mcurrent system is: ${os_arch}_${os_name}_${os_type}\x1B[0m\n"
 }
 
-# Check whether the instructions used in the current script exist
+# check whether the instructions used in the current script exist
 check_dependencies() {
   local command_dependency package_dependency
 
@@ -94,29 +94,29 @@ check_dependencies() {
     return 0
   fi
 
-  printf "\e[2mChecking command dependencies now ...\e[0m\n"
+  printf "\x1B[2mchecking command dependencies now ...\x1B[0m\n"
 
   for index in "${!command_dependency[@]}"; do
-    printf "\e[4C\e[2m${command_dependency[index]} - "
+    printf "\x1B[4C\x1B[2m${command_dependency[index]} - "
 
     if type -t "${command_dependency[index]}" &>/dev/null; then
-      printf "installed\e[0m\n"
+      printf "installed\x1B[0m\n"
     else
-      printf "not installed\e[0m\n"
-      printf "\e[8C\e[2m${package_manager} ${package_dependency[index]} ... "
+      printf "not installed\x1B[0m\n"
+      printf "\x1B[8C\x1B[2m${package_manager} ${package_dependency[index]} ... "
 
       if sh -c "${package_manager} ${package_dependency[index]}" &>/dev/null; then
-        printf "done\e[0m\n"
+        printf "done\x1B[0m\n"
       else
-        printf "error\e[0m\n"
-        printf "\e[38;2;215;0;0mError: please run the command manually\e[0m\n"
+        printf "error\x1B[0m\n"
+        printf "\x1B[38;2;215;0;0mError: please run the command manually\x1B[0m\n"
         exit 1
       fi
     fi
   done
 }
 
-# Load external script resources
+# load external script resources
 source_external_scripts() {
   local script_file external_script_links command_dependency package_dependency
 
@@ -131,20 +131,20 @@ source_external_scripts() {
     return 0
   fi
 
-  printf "\e[2mLoading external scripts now ...\e[0m\n"
+  printf "\x1B[2mloading external scripts now ...\x1B[0m\n"
 
   for link in "${external_script_links[@]}"; do
-    printf "\e[4C\e[2mloading ${link} - "
+    printf "\x1B[4C\x1B[2mloading ${link} - "
 
     script_file=$(mktemp -p "${TEMPDIRECTORY}" -t script_XXXXXX.sh 2>/dev/null) || {
-      printf "error\e[0m\n"
-      printf "\e[38;2;215;0;0mError: failed to create temporary file\e[0m\n"
+      printf "error\x1B[0m\n"
+      printf "\x1B[38;2;215;0;0mError: failed to create temporary file\x1B[0m\n"
       exit 1
     }
 
     curl -fsSL "${link}" -o "${script_file}" 2>/dev/null || {
-      printf "error\e[0m\n"
-      printf "\e[38;2;215;0;0mError: failed to download external script\e[0m\n"
+      printf "error\x1B[0m\n"
+      printf "\x1B[38;2;215;0;0mError: failed to download external script\x1B[0m\n"
       exit 1
     }
 
@@ -166,45 +166,45 @@ source_external_scripts() {
       fi
     done
 
-    printf "done\e[0m\n"
+    printf "done\x1B[0m\n"
   done
 
   if [[ ${#command_dependency[@]} == 0 ]]; then
     return 0
   fi
 
-  printf "\e[2mInstalling external command dependencies ...\e[0m\n"
+  printf "\x1B[2minstalling external command dependencies ...\x1B[0m\n"
 
   for index in "${!command_dependency[@]}"; do
-    printf "\e[4C\e[2m${command_dependency[index]} - "
+    printf "\x1B[4C\x1B[2m${command_dependency[index]} - "
 
     if type -t "${command_dependency[index]}" &>/dev/null; then
-      printf "installed\e[0m\n"
+      printf "installed\x1B[0m\n"
     else
-      printf "not installed\e[0m\n"
-      printf "\e[8C\e[2m${package_manager} ${package_dependency[index]} ... "
+      printf "not installed\x1B[0m\n"
+      printf "\x1B[8C\x1B[2m${package_manager} ${package_dependency[index]} ... "
 
       if sh -c "${package_manager} ${package_dependency[index]}" &>/dev/null; then
-        printf "done\e[0m\n"
+        printf "done\x1B[0m\n"
       else
-        printf "error\e[0m\n"
-        printf "\e[38;2;215;0;0mError: please run the command manually\e[0m\n"
+        printf "error\x1B[0m\n"
+        printf "\x1B[38;2;215;0;0mError: please run the command manually\x1B[0m\n"
         exit 1
       fi
     fi
   done
 }
 
-# Check whether the execution user is root
+# check whether the execution user is root
 check_permission
-# Check the environment of the current script
+# check the environment of the current script
 check_environment
-# Check whether the instructions used in the current script exist
+# check whether the instructions used in the current script exist
 check_dependencies
-# Source external script resources
+# source external script resources
 source_external_scripts
 
-# Ubuntu/Debian installer
+# ubuntu/debian installer
 generate_debian_docker_source() {
   cat <<EOF
 Types: deb
@@ -216,9 +216,9 @@ Signed-By: ${docker_gpg_path}
 EOF
 }
 
-debian_docker_installer() {
+debian_installer_docker() {
   docker_gpg_name="docker-engine.asc"
-  docker_gpg_path="/usr/share/keyrings/docker-engine.gpg"
+  docker_gpg_path="/etc/apt/keyrings/docker-engine.gpg"
   docker_apt_sources="/etc/apt/sources.list.d/docker-engine.sources"
 
   show_info "downloading the gpg key from https://download.docker.com/linux/${os_name}/gpg\n"
@@ -267,16 +267,14 @@ debian_docker_installer() {
     }
     show_success "successfully add ${user_name} to the docker group\n"
   done
-
-  reboot
 }
 
+# main program entry
 case "${os_name}" in
   ubuntu | debian)
-    debian_docker_installer
+    debian_installer_docker
     ;;
   *)
     show_error "unsupported system for ${os_name}\n"
-    exit 1
     ;;
 esac

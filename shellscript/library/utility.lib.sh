@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
 
-# utility.lib.sh
-# Author: rehuony
-# Description: Template file used to create library shellscript
-# GitHub: https://github.com/rehuony/resource
+# name: utility.lib.sh
+# author: rehuony
+# github: https://github.com/rehuony/resource
+# description: template file used to create library shellscript
 
-# Enable the following shell options:
-# -E: Ensure that ERR trap is also valid in function, subshell, and command replacements
-# -e: When any command exits in a non-zero state, exit the script immediately
-# -u: When using undefined variables, the script will report an error and exit
-# -o pipefail: When any command in the pipeline fails, the entire pipeline returns to a failed state
+# enable the following shell options:
+# -E: ensure that err trap is also valid in function, subshell, and command replacements
+# -e: when any command exits in a non-zero state, exit the script immediately
+# -u: when using undefined variables, the script will report an error and exit
+# -o: pipefail: when any command in the pipeline fails, the entire pipeline returns to a failed state
 set -Eeuo pipefail
 
 lib_command_dependency=('grep' 'awk' 'md5sum' 'uuidgen')
@@ -18,25 +18,25 @@ lib_package_dependency=('grep' 'gawk' 'coreutils' 'uuid-runtime')
 # -------------------------------------------------------------------
 # install_content
 #
-# Description:
-#   Installs the given content to a specified destination file with
-#   defined permissions, owner, and group. Creates a temporary file
-#   to hold the content before installing. If the destination
+# description:
+#   installs the given content to a specified destination file with
+#   defined permissions, owner, and group. creates a temporary file
+#   to hold the content before installing. if the destination
 #   already exists, a backup is created with a ".bak" suffix
 #
-# Arguments:
-#   $1 - File mode (e.g. "644")
-#   $2 - Owner and group (e.g. "root" or "root:root")
-#   $3 - Content to be written to the file
-#   $4 - Absolute path to the destination file
-#   $5 - Whether to delete the backup file (e.g. "true" or "false")
+# arguments:
+#   $1 - file mode (e.g. "644")
+#   $2 - owner and group (e.g. "root" or "root:root")
+#   $3 - content to be written to the file
+#   $4 - absolute path to the destination file
+#   $5 - whether to delete the backup file (e.g. "true" or "false")
 #
-# Returns:
+# returns:
 #   0 - install content success
 #   1 - parameter error or operation failed
 #   2 - target file already exists and is backed up
 #
-# Usage:
+# usage:
 #   install_content 644 "root:root" "content" "/path/to/destination"
 # -------------------------------------------------------------------
 install_content() {
@@ -78,49 +78,49 @@ install_content() {
 # -------------------------------------------------------------------
 # install_content_with_comment
 #
-# Description:
-#   Calls install_content to install the given content to a specified
+# description:
+#   calls install_content to install the given content to a specified
 #   destination file with defined permissions, owner, and group, and
-#   prints status messages to the console. If the destination already
+#   prints status messages to the console. if the destination already
 #   exists, a backup is created with a ".bak" suffix.
 #
-# Arguments:
-#   $1 - File mode (e.g. "644")
-#   $2 - Owner and group (e.g. "root" or "root:root")
-#   $3 - Content to be written to the file
-#   $4 - Absolute path to the destination file
-#   $5 - Whether to delete the backup file (e.g. "true" or "false")
+# arguments:
+#   $1 - file mode (e.g. "644")
+#   $2 - owner and group (e.g. "root" or "root:root")
+#   $3 - content to be written to the file
+#   $4 - absolute path to the destination file
+#   $5 - whether to delete the backup file (e.g. "true" or "false")
 #
-# Usage:
+# usage:
 #   install_content_with_comment 644 "root:root" "content" "/path/to/destination"
 # -------------------------------------------------------------------
 install_content_with_comment() {
-  printf "\e[38;2;0;135;215m[INFO]\e[0m \e[2minstalling content for ${4}\n\e[0m"
+  printf "\x1B[38;2;0;135;215m[INFO]\x1B[0m \x1B[2minstalling content for ${4}\n\x1B[0m"
   if install_content "${@}"; then
-    printf "\e[38;2;0;175;0m[SUCCESS]\e[0m \e[2minstalled content for ${4}\n\e[0m"
+    printf "\x1B[38;2;0;175;0m[SUCCESS]\x1B[0m \x1B[2minstalled content for ${4}\n\x1B[0m"
   elif [[ "$?" == 2 ]]; then
-    printf "\e[38;2;215;215;95m[WARN]\e[0m \e[2mbackup old file to ${4}.bak\n\e[0m"
+    printf "\x1B[38;2;215;215;95m[WARN]\x1B[0m \x1B[2mbackup old file to ${4}.bak\n\x1B[0m"
   else
-    printf "\e[38;2;215;0;0m[ERROR]\e[0m \e[2mfailed to install content for ${4}\n\e[0m"
+    printf "\x1B[38;2;215;0;0m[ERROR]\x1B[0m \x1B[2mfailed to install content for ${4}\n\x1B[0m"
   fi
 }
 
 # -------------------------------------------------------------------
 # remove_content
 #
-# Description:
-#   Removes the specified file or directory at the given absolute
-#   path. If the destination does not exist, the function exits
-#   successfully. Prevents accidental removal of the root directory
+# description:
+#   removes the specified file or directory at the given absolute
+#   path. if the destination does not exist, the function exits
+#   successfully. prevents accidental removal of the root directory
 #
-# Arguments:
-#   $1 - Absolute path to the file or directory to remove
+# arguments:
+#   $1 - absolute path to the file or directory to remove
 #
-# Returns:
+# returns:
 #   0 - remove content success
 #   1 - parameter error or operation failed
 #
-# Usage:
+# usage:
 #   remove_content "/path/to/destination"
 # -------------------------------------------------------------------
 remove_content() {
@@ -141,41 +141,41 @@ remove_content() {
 # -------------------------------------------------------------------
 # remove_content_with_comment
 #
-# Description:
-#   Calls remove_content to remove the specified file or directory at
+# description:
+#   calls remove_content to remove the specified file or directory at
 #   the given absolute path, and prints status messages to the console
 #
-# Arguments:
-#   $1 - Absolute path to the file or directory to remove
+# arguments:
+#   $1 - absolute path to the file or directory to remove
 #
-# Usage:
+# usage:
 #   remove_content_with_comment "/path/to/destination"
 # -------------------------------------------------------------------
 remove_content_with_comment() {
-  printf "\e[38;2;0;135;215m[INFO]\e[0m \e[2mremoving content for ${1}\n\e[0m"
+  printf "\x1B[38;2;0;135;215m[INFO]\x1B[0m \x1B[2mremoving content for ${1}\n\x1B[0m"
   if remove_content "$1"; then
-    printf "\e[38;2;0;175;0m[SUCCESS]\e[0m \e[2mremoved content for ${1}\n\e[0m"
+    printf "\x1B[38;2;0;175;0m[SUCCESS]\x1B[0m \x1B[2mremoved content for ${1}\n\x1B[0m"
   else
-    printf "\e[38;2;215;0;0m[ERROR]\e[0m \e[2mfailed to remove content for ${1}\n\e[0m"
+    printf "\x1B[38;2;215;0;0m[ERROR]\x1B[0m \x1B[2mfailed to remove content for ${1}\n\x1B[0m"
   fi
 }
 
 # -------------------------------------------------------------------
 # load_ini_config
 #
-# Description:
-#   Loads the value of a given key from an INI-style configuration
-#   file. Ignores commented lines and trims whitespace. Only supports
+# description:
+#   loads the value of a given key from an ini-style configuration
+#   file. ignores commented lines and trims whitespace. only supports
 #   simple key=value pairs (no section support)
 #
-# Arguments:
-#   $1 - Key to search
-#   $2 - Path to the INI configuration file
+# arguments:
+#   $1 - key to search
+#   $2 - path to the ini configuration file
 #
-# Returns:
-#   The value of the key to stdout, or nothing if not found
+# returns:
+#   the value of the key to stdout, or nothing if not found
 #
-# Usage:
+# usage:
 #   load_ini_config "key" "/path/to/config.ini"
 # -------------------------------------------------------------------
 load_ini_config() {
@@ -201,14 +201,14 @@ load_ini_config() {
 # -------------------------------------------------------------------
 # get_global_ip
 #
-# Description:
-#   Retrieves the public/global IP address of the current machine by
-#   querying an external API
+# description:
+#   retrieves the public/global ip address of the current machine by
+#   querying an external api
 #
-# Returns:
-#   The global IP address to stdout
+# returns:
+#   the global ip address to stdout
 #
-# Usage:
+# usage:
 #   get_global_ip
 # -------------------------------------------------------------------
 get_global_ip() {
@@ -218,17 +218,17 @@ get_global_ip() {
 # -------------------------------------------------------------------
 # get_input_message
 #
-# Description:
-#   Prompts the user for input with a given message and returns the
+# description:
+#   prompts the user for input with a given message and returns the
 #   input
 #
-# Arguments:
-#   $1 - Prompt message to display to the user
+# arguments:
+#   $1 - prompt message to display to the user
 #
-# Returns:
-#   The user input
+# returns:
+#   the user input
 #
-# Usage:
+# usage:
 #   get_input_message "prompt information"
 # -------------------------------------------------------------------
 get_input_message() {
@@ -243,23 +243,23 @@ get_input_message() {
 # -------------------------------------------------------------------
 # get_input_until_success
 #
-# Description:
-#   Continuously prompts the user for input with a given message
-#   until valid input is provided. Optionally validates the input
+# description:
+#   continuously prompts the user for input with a given message
+#   until valid input is provided. optionally validates the input
 #   against a regular expression and displays a custom error message
 #   if validation fails
 #
-# Arguments:
-#   $1 - Prompt message to display to the user
-#   $2 - (Optional) Regular expression to validate the input
-#   $3 - (Optional) Error message to display if validation fails
+# arguments:
+#   $1 - prompt message to display to the user
+#   $2 - (optional) regular expression to validate the input
+#   $3 - (optional) error message to display if validation fails
 #
-# Returns:
-#   Echoes the valid user input to stdout
+# returns:
+#   echoes the valid user input to stdout
 #
-# Usage:
-#   get_input_until_success "Enter your name: "
-#   get_input_until_success "Enter a number: " '^[0-9]+$' "Input must be a number"
+# usage:
+#   get_input_until_success "enter your name: "
+#   get_input_until_success "enter a number: " '^[0-9]+$' "input must be a number"
 # -------------------------------------------------------------------
 get_input_until_success() {
   local prompt validate error_msg input_message
@@ -270,11 +270,11 @@ get_input_until_success() {
 
   while read -e -p "${prompt}" input_message </dev/tty; do
     if [[ -z "${input_message}" ]]; then
-      printf "\e[38;2;215;215;95minput cannot be empty, please try again\n\e[0m" >&2
+      printf "\x1B[38;2;215;215;95minput cannot be empty, please try again\n\x1B[0m" >&2
       continue
     elif [[ -n "${validate}" ]]; then
       if ! echo "$input_message" | grep -Pq "$validate"; then
-        printf "\e[38;2;215;215;95m${error_msg}\n\e[0m" >&2
+        printf "\x1B[38;2;215;215;95m${error_msg}\n\x1B[0m" >&2
         continue
       fi
     fi
@@ -288,14 +288,14 @@ get_input_until_success() {
 # -------------------------------------------------------------------
 # generate_random_uuid
 #
-# Description:
-#   Generates a random UUID (Universally Unique Identifier) using the
-#   uuidgen command with the -r flag to produce a random-based UUID
+# description:
+#   generates a random uuid (universally unique identifier) using the
+#   uuidgen command with the -r flag to produce a random-based uuid
 #
-# Returns:
-#   The generated UUID to stdout
+# returns:
+#   the generated uuid to stdout
 #
-# Usage:
+# usage:
 #   generate_random_uuid
 # -------------------------------------------------------------------
 generate_random_uuid() {
@@ -305,15 +305,15 @@ generate_random_uuid() {
 # -------------------------------------------------------------------
 # generate_random_password
 #
-# Description:
-#   Generates a random password by reading 32 bytes from /dev/random,
+# description:
+#   generates a random password by reading 32 bytes from /dev/random,
 #   removing null bytes, and then hashing the result with md5sum to
 #   produce a fixed-length hexadecimal string
 #
-# Returns:
-#   The generated password (MD5 hash) to stdout
+# returns:
+#   the generated password (md5 hash) to stdout
 #
-# Usage:
+# usage:
 #   generate_random_password
 # -------------------------------------------------------------------
 generate_random_password() {

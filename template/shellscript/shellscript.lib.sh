@@ -1,35 +1,36 @@
 #!/usr/bin/env bash
 
-# shellscript.lib.sh
-# Author: rehuony
-# Description: Template file used to create library shellscript
-# GitHub: https://github.com/rehuony/resource
+# name: shellscript.lib.sh
+# author: rehuony
+# github: https://github.com/rehuony/resource
+# description: template file used to create shellscript library
 
-# Enable the following shell options:
-# -E: Ensure that ERR trap is also valid in function, subshell, and command replacements
-# -e: When any command exits in a non-zero state, exit the script immediately
-# -u: When using undefined variables, the script will report an error and exit
-# -o pipefail: When any command in the pipeline fails, the entire pipeline returns to a failed state
-set -Eeuo pipefail
+# enable the following shell options:
+# -E: ensure that err trap is also valid in function, subshell, and command replacements
+# -e: when any command exits in a non-zero state, exit the script immediately
+# -u: when using undefined variables, the script will report an error and exit
+# -x: the command and its parameters will be printed when executing the command (for debugging)
+# -o: pipefail: When any command in the pipeline fails, the entire pipeline returns to a failed state
+set -Eeuxo pipefail
 
-lib_command_dependency=() # CONFIG: commands appearing in library script
+lib_command_dependency=() # CONFIG: commands appearing in script library
 lib_package_dependency=() # CONFIG: corresponding package name of the command
 
 # -------------------------------------------------------------------
 # function_name
 #
-# Description:
-#   Description for function
+# description:
+#   description for function
 #
-# Arguments:
+# arguments:
 #   $1 - argument 1 (e.g. "demo1")
 #   $2 - argument 2 (e.g. "demo2")
 #
-# Returns:
+# returns:
 #   0 - success
 #   1 - error
 #
-# Usage:
+# usage:
 #   function_name "demo1" "demo2"
 # -------------------------------------------------------------------
 # function_name() {

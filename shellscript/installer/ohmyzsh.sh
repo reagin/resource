@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
 
-# name: initialize.sh
+# name: oh-my-zsh.sh
 # author: rehuony
 # github: https://github.com/rehuony/resource
-# description: script file for personalizing ubuntu configurations
+# description: customize the terminal using oh-my-zsh
 
 # enable the following shell options:
 # -E: ensure that err trap is also valid in function, subshell, and command replacements
 # -e: when any command exits in a non-zero state, exit the script immediately
 # -u: when using undefined variables, the script will report an error and exit
-# -o: pipefail: when any command in the pipeline fails, the entire pipeline returns to a failed state
+# -o pipefail: when any command in the pipeline fails, the entire pipeline returns to a failed state
 set -Eeuo pipefail
 
 # setting up temporary working directory when script runs
@@ -30,16 +30,6 @@ TEMPDIRECTORY=$(mktemp -dt rehuony_directory_XXXXXX 2>/dev/null) || {
 pushd "${TEMPDIRECTORY}" &>/dev/null || {
   printf "\x1B[38;2;215;0;0mError: failed to pushd temporary directory\x1B[0m\n"
   exit 1
-}
-
-# check whether the execution user is root
-check_permission() {
-  printf "\x1B[2mcurrent user is: ${USER}\x1B[0m\n"
-
-  if [[ "${EUID}" != 0 ]]; then
-    printf "\x1B[38;2;215;0;0mError: please run the script with root\x1B[0m\n"
-    exit 1
-  fi
 }
 
 # check the environment of the current script
@@ -87,8 +77,8 @@ check_environment() {
 check_dependencies() {
   local command_dependency package_dependency
 
-  command_dependency=('sed' 'curl')
-  package_dependency=('sed' 'curl')
+  command_dependency=(awk curl mktemp runuser)
+  package_dependency=(gawk curl coreutils util-linux)
 
   if [[ ${#command_dependency[@]} == 0 ]]; then
     return 0
@@ -123,6 +113,7 @@ source_external_scripts() {
   command_dependency=()
   package_dependency=()
   external_script_links=(
+    'https://raw.githubusercontent.com/rehuony/resource/refs/heads/main/shellscript/library/message.lib.sh'
     'https://raw.githubusercontent.com/rehuony/resource/refs/heads/main/shellscript/library/utility.lib.sh'
   )
 
@@ -194,8 +185,6 @@ source_external_scripts() {
   done
 }
 
-# check whether the execution user is root
-check_permission
 # check the environment of the current script
 check_environment
 # check whether the instructions used in the current script exist
@@ -203,90 +192,118 @@ check_dependencies
 # source external script resources
 source_external_scripts
 
-generate_authorized_keys() {
-  cat <<EOF
-ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDcfK/7nowd2sE5DAAePkIha/AsLdprX9cX0YPGKJV0D reagin's personal key for universal usage
-EOF
-}
+backup_bash_config() {
+  local backup patterns file
 
-generate_alias_config() {
-  cat <<EOF
-alias cls='clear'
-alias quit='rm -f ~/.bash_history && history -c && exit'
-EOF
-}
+  # create a timestamped backup directory in the user's home
+  backup="${HOME}/.bash_backup_$(date +%Y%m%d%H%M%S)"
+  # patterns to clean (will match exact name and variants like .bash_completion*)
+  patterns=(".bashrc" ".bash_profile" ".bash_login" ".profile" ".bash_logout" ".bash_history" ".bash_aliases" ".bash_functions" ".bash_completion" ".bash_completion.d" ".bashrc.d")
 
-generate_vim_config() {
-  cat <<EOF
-syntax on
-set number
-set nobackup
-set noswapfile
-set nocompatible
-set expandtab
-set tabstop=4
-set softtabstop=4
-set shiftwidth=4
-set smarttab
-set autoindent
-set smartindent
-set encoding=utf-8
-EOF
-}
+  show_info "backing bash-related files for ${USER}\n"
+  mkdir -p -- "${backup}" || {
+    show_error "failed to create backup directory: ${backup}\n"
+    return 1
+  }
 
-debian_custom_initialize() {
-  for user_dir in /root /home/*; do
-    [[ -d "${user_dir}" ]] || {
-      continue
-    }
+  # enable globbing for hidden files and nullglob so non-matching globs disappear
+  shopt -s nullglob dotglob 2>/dev/null || true
 
-    user_name=$(basename "${user_dir}")
-    junk_files=('.bash_history' '.cloud-locale-test.skip' '.viminfo' '.wget-hsts')
-
-    install_content_with_comment 600 "${user_name}:${user_name}" "$(generate_authorized_keys)" "${user_dir}/.ssh/authorized_keys" true
-    install_content_with_comment 644 "${user_name}:${user_name}" "$(generate_alias_config)" "${user_dir}/.bash_aliases" true
-    install_content_with_comment 644 "${user_name}:${user_name}" "$(generate_vim_config)" "${user_dir}/.vimrc" true
-    install_content_with_comment 644 "${user_name}:${user_name}" "" "${user_dir}/.hushlogin" true
-
-    # modify the .bashrc file in the home directory
-    sed -Ei 's/^#?(force_color_prompt).*/\1=yes/Ig' "${user_dir}/.bashrc"
-    sed -Ei '/^# some more ls aliases/{n;N;N;d;}' "${user_dir}/.bashrc"
-    sed -Ei "/^# some more ls aliases/a\alias l='ls -CF'" "${user_dir}/.bashrc"
-    sed -Ei "/^# some more ls aliases/a\alias la='ls -AF'" "${user_dir}/.bashrc"
-    sed -Ei "/^# some more ls aliases/a\alias ll='ls -lAF'" "${user_dir}/.bashrc"
-
-    if [[ "${user_name}" == "root" ]]; then
-      sed -Ei '/\$color_prompt/I{N;s/(ps1)=(.).*\2/\1=\2${debian_chroot:+($debian_chroot)}\\[\\033[01;31m\\]\\u@\\h\\[\\033[00m\\]:\\[\\033[01;34m\\]\\w \\$\\[\\033[00m\\] \2/Ig;}' "${user_dir}/.bashrc"
-    else
-      sed -Ei '/\$color_prompt/I{N;s/(ps1)=(.).*\2/\1=\2${debian_chroot:+($debian_chroot)}\\[\\033[01;32m\\]\\u@\\h\\[\\033[00m\\]:\\[\\033[01;34m\\]\\w \\$\\[\\033[00m\\] \2/Ig;}' "${user_dir}/.bashrc"
-    fi
-
-    # clean junk files in home path
-    for file in "${junk_files[@]}"; do
-      remove_content_with_comment "${user_dir}/${file}"
+  for pattern in "${patterns[@]}"; do
+    for file in "${HOME}/${pattern}"*; do
+      [[ -e "${file}" ]] || continue
+      show_info "backing up ${file} - "
+      if mv -- "${file}" "${backup}/" &>/dev/null; then
+        show_text "done\n"
+      else
+        show_text "error\n"
+      fi
     done
   done
 
-  # modify /etc/ssh/sshd_config configuration
-  sed -Ei 's/^#?(port).*/\1 22/Ig' /etc/ssh/sshd_config
-  sed -Ei 's/^#?(permitrootlogin).*/\1 prohibit-password/Ig' /etc/ssh/sshd_config
-  sed -Ei 's/^#?(passwordauthentication).*/\1 no/Ig' /etc/ssh/sshd_config
-  sed -Ei 's/^#?(permitemptypasswords).*/\1 no/Ig' /etc/ssh/sshd_config
-  sed -Ei 's/^#?(clientaliveinterval).*/\1 60/Ig' /etc/ssh/sshd_config
-  sed -Ei 's/^#?(clientalivecountmax).*/\1 3/Ig' /etc/ssh/sshd_config
+  # restore shell options to previous state
+  shopt -u nullglob dotglob 2>/dev/null || true
 
-  # restart the ssh service
-  systemctl daemon-reload && systemctl restart ssh.socket
-
-  # clean junk files in root path
-  rm -rf /*.usr-is-merged
-  rm -rf /lost+found
+  show_success "bash-related files backed up to: ${backup}\n"
 }
 
-# main program entry
+generate_zsh_env() {
+  cat <<'EOF'
+# ~/.zshenv - user environment settings
+
+# Disable system-wide compinit to avoid duplicate runs
+skip_global_compinit=1
+
+# Example: set ZDOTDIR if you keep configs elsewhere
+# export ZDOTDIR="$HOME/.config/zsh"
+EOF
+}
+
+install_zsh_shell() {
+  local zsh_path
+
+  show_info "checking the status of zsh - "
+  zsh_path="$(command -v zsh || true)"
+  if [[ -n "${zsh_path}" ]]; then
+    show_text "installed\n"
+  else
+    show_text "not installed\n"
+    show_info "executing command ${package_manager} zsh\n"
+    if sh -c "${package_manager} zsh" &>/dev/null; then
+      show_success "successfully installed zsh\n"
+    else
+      show_error "please run command manually: ${package_manager} zsh\n"
+      return 1
+    fi
+  fi
+
+  show_info "changing default shell for ${USER} to ${zsh_path}\n"
+  show_text "please input your password: "
+  if chsh -s "${zsh_path}" 2>/dev/null; then
+    show_text "\n"
+    show_success "default shell changed to zsh for ${USER}\n"
+  else
+    show_text "\n"
+    show_error "failed to change default shell automatically\n"
+    return 1
+  fi
+
+  install_content_with_comment 644 "${USER}:${USER}" "$(generate_zsh_env)" "${HOME}/.zshenv" true
+}
+
+install_ohmyzsh_plugin() {
+  local installer_url installer_file
+
+  installer_url="https://raw.githubusercontent.com/rehuony/ohmyzsh/custom/tools/install.sh"
+
+  installer_file=$(mktemp -p "${TEMPDIRECTORY}" -t ohmyzsh_installer_XXXX.sh 2>/dev/null) || {
+    show_error "failed to create temporary installer file\n"
+    return 1
+  }
+
+  show_info "downloading oh-my-zsh installer - "
+  if curl -fsSL "${installer_url}" -o "${installer_file}"; then
+    show_text "done\n"
+  else
+    show_text "error\n"
+    return 1
+  fi
+
+  show_info "running oh-my-zsh installer for ${USER} (REPO=${REPO:-rehuony/ohmyzsh} BRANCH=${BRANCH:-custom})\n\n"
+
+  env REPO="${REPO:-rehuony/ohmyzsh}" BRANCH="${BRANCH:-custom}" RUNZSH=no CHSH=no sh "${installer_file}"
+}
+
+debian_installer_ohmyzsh() {
+  backup_bash_config
+  install_zsh_shell
+  install_ohmyzsh_plugin
+}
+
+# Main program entry
 case "${os_name}" in
   ubuntu | debian)
-    debian_custom_initialize
+    debian_installer_ohmyzsh
     ;;
   *)
     show_error "unsupported system for ${os_name}\n"

@@ -1,18 +1,18 @@
 #!/usr/bin/env bash
 
-# installer_opengfw.sh
-# Author: rehuony
-# Description: Scripts for installing sing-box server agents
-# GitHub: https://github.com/rehuony/resource
+# name: sing-box.sh
+# author: rehuony
+# github: https://github.com/rehuony/resource
+# description: scripts for installing sing-box server agents
 
-# Enable the following shell options:
-# -E: Ensure that ERR trap is also valid in function, subshell, and command replacements
-# -e: When any command exits in a non-zero state, exit the script immediately
-# -u: When using undefined variables, the script will report an error and exit
-# -o pipefail: When any command in the pipeline fails, the entire pipeline returns to a failed state
+# enable the following shell options:
+# -E: ensure that err trap is also valid in function, subshell, and command replacements
+# -e: when any command exits in a non-zero state, exit the script immediately
+# -u: when using undefined variables, the script will report an error and exit
+# -o: pipefail: when any command in the pipeline fails, the entire pipeline returns to a failed state
 set -Eeuo pipefail
 
-# Setting up temporary working directory when script runs
+# setting up temporary working directory when script runs
 trap remove_temp_directory EXIT
 
 remove_temp_directory() {
@@ -23,26 +23,26 @@ remove_temp_directory() {
 }
 
 TEMPDIRECTORY=$(mktemp -dt rehuony_directory_XXXXXX 2>/dev/null) || {
-  printf "\e[38;2;215;0;0mError: failed to create temporary directory\e[0m\n"
+  printf "\x1B[38;2;215;0;0mError: failed to create temporary directory\x1B[0m\n"
   exit 1
 }
 
 pushd "${TEMPDIRECTORY}" &>/dev/null || {
-  printf "\e[38;2;215;0;0mError: failed to pushd temporary directory\e[0m\n"
+  printf "\x1B[38;2;215;0;0mError: failed to pushd temporary directory\x1B[0m\n"
   exit 1
 }
 
-# Check whether the execution user is root
+# check whether the execution user is root
 check_permission() {
-  printf "\e[2mCurrent user is: ${USER}\e[0m\n"
+  printf "\x1B[2mcurrent user is: ${USER}\x1B[0m\n"
 
   if [[ "${EUID}" != 0 ]]; then
-    printf "\e[38;2;215;0;0mError: please run the script with root\e[0m\n"
+    printf "\x1B[38;2;215;0;0mError: please run the script with root\x1B[0m\n"
     exit 1
   fi
 }
 
-# Check the environment of the current script
+# check the environment of the current script
 check_environment() {
   [[ -f "/etc/os-release" ]] && source /etc/os-release
 
@@ -75,15 +75,15 @@ check_environment() {
       package_installer="rpm -i"
       ;;
     *)
-      printf "\e[38;2;215;0;0mError: unsupported system for ${os_name}\e[0m\n"
+      printf "\x1B[38;2;215;0;0mError: unsupported system for ${os_name}\x1B[0m\n"
       exit 1
       ;;
   esac
 
-  printf "\e[2mCurrent system is: ${os_arch}_${os_name}_${os_type}\e[0m\n"
+  printf "\x1B[2mcurrent system is: ${os_arch}_${os_name}_${os_type}\x1B[0m\n"
 }
 
-# Check whether the instructions used in the current script exist
+# check whether the instructions used in the current script exist
 check_dependencies() {
   local command_dependency package_dependency
 
@@ -94,22 +94,22 @@ check_dependencies() {
     return 0
   fi
 
-  printf "\e[2mChecking command dependencies now ...\e[0m\n"
+  printf "\x1B[2mchecking command dependencies now ...\x1B[0m\n"
 
   for index in "${!command_dependency[@]}"; do
-    printf "\e[4C\e[2m${command_dependency[index]} - "
+    printf "\x1B[4C\x1B[2m${command_dependency[index]} - "
 
     if type -t "${command_dependency[index]}" &>/dev/null; then
-      printf "installed\e[0m\n"
+      printf "installed\x1B[0m\n"
     else
-      printf "not installed\e[0m\n"
-      printf "\e[8C\e[2m${package_manager} ${package_dependency[index]} ... "
+      printf "not installed\x1B[0m\n"
+      printf "\x1B[8C\x1B[2m${package_manager} ${package_dependency[index]} ... "
 
       if sh -c "${package_manager} ${package_dependency[index]}" &>/dev/null; then
-        printf "done\e[0m\n"
+        printf "done\x1B[0m\n"
       else
-        printf "error\e[0m\n"
-        printf "\e[38;2;215;0;0mError: please run the command manually\e[0m\n"
+        printf "error\x1B[0m\n"
+        printf "\x1B[38;2;215;0;0mError: please run the command manually\x1B[0m\n"
         exit 1
       fi
     fi
@@ -131,20 +131,20 @@ source_external_scripts() {
     return 0
   fi
 
-  printf "\e[2mLoading external scripts now ...\e[0m\n"
+  printf "\x1B[2mloading external scripts now ...\x1B[0m\n"
 
   for link in "${external_script_links[@]}"; do
-    printf "\e[4C\e[2mloading ${link} - "
+    printf "\x1B[4C\x1B[2mloading ${link} - "
 
     script_file=$(mktemp -p "${TEMPDIRECTORY}" -t script_XXXXXX.sh 2>/dev/null) || {
-      printf "error\e[0m\n"
-      printf "\e[38;2;215;0;0mError: failed to create temporary file\e[0m\n"
+      printf "error\x1B[0m\n"
+      printf "\x1B[38;2;215;0;0mError: failed to create temporary file\x1B[0m\n"
       exit 1
     }
 
     curl -fsSL "${link}" -o "${script_file}" 2>/dev/null || {
-      printf "error\e[0m\n"
-      printf "\e[38;2;215;0;0mError: failed to download external script\e[0m\n"
+      printf "error\x1B[0m\n"
+      printf "\x1B[38;2;215;0;0mError: failed to download external script\x1B[0m\n"
       exit 1
     }
 
@@ -166,70 +166,65 @@ source_external_scripts() {
       fi
     done
 
-    printf "done\e[0m\n"
+    printf "done\x1B[0m\n"
   done
 
   if [[ ${#command_dependency[@]} == 0 ]]; then
     return 0
   fi
 
-  printf "\e[2mInstalling external command dependencies ...\e[0m\n"
+  printf "\x1B[2minstalling external command dependencies ...\x1B[0m\n"
 
   for index in "${!command_dependency[@]}"; do
-    printf "\e[4C\e[2m${command_dependency[index]} - "
+    printf "\x1B[4C\x1B[2m${command_dependency[index]} - "
 
     if type -t "${command_dependency[index]}" &>/dev/null; then
-      printf "installed\e[0m\n"
+      printf "installed\x1B[0m\n"
     else
-      printf "not installed\e[0m\n"
-      printf "\e[8C\e[2m${package_manager} ${package_dependency[index]} ... "
+      printf "not installed\x1B[0m\n"
+      printf "\x1B[8C\x1B[2m${package_manager} ${package_dependency[index]} ... "
 
       if sh -c "${package_manager} ${package_dependency[index]}" &>/dev/null; then
-        printf "done\e[0m\n"
+        printf "done\x1B[0m\n"
       else
-        printf "error\e[0m\n"
-        printf "\e[38;2;215;0;0mError: please run the command manually\e[0m\n"
+        printf "error\x1B[0m\n"
+        printf "\x1B[38;2;215;0;0mError: please run the command manually\x1B[0m\n"
         exit 1
       fi
     fi
   done
 }
 
-# Check whether the execution user is root
+# check whether the execution user is root
 check_permission
-# Check the environment of the current script
+# check the environment of the current script
 check_environment
-# Check whether the instructions used in the current script exist
+# check whether the instructions used in the current script exist
 check_dependencies
-# Source external script resources
+# source external script resources
 source_external_scripts
 
-# NOTE: Define global variables
-declare user_ip
+# define global variables
 declare user_name
 declare user_email
 declare user_domain
 declare user_password
-declare cloudflare_token
 declare global_config_path='/etc/letsencrypt/cloudfalre.ini'
 
 declare certificate_path
 declare certificate_key_path
 
-# NOTE: Loading the configuration file
+# loading the configuration file
 generate_global_config() {
   cat <<EOF
 user_name=${user_name}
 user_email=${user_email}
 user_domain=${user_domain}
 user_password=${user_password}
-dns_cloudflare_api_token=${cloudflare_token}
 EOF
 }
 
 load_global_config() {
-  user_ip=$(get_global_ip)
-
   if [[ -f "${global_config_path}" ]]; then
     show_info "loading data from configuration: ${global_config_path}\n"
 
@@ -237,9 +232,8 @@ load_global_config() {
     user_email=$(load_ini_config 'user_email' "${global_config_path}")
     user_domain=$(load_ini_config 'user_domain' "${global_config_path}")
     user_password=$(load_ini_config 'user_password' "${global_config_path}")
-    cloudflare_token=$(load_ini_config 'dns_cloudflare_api_token' "${global_config_path}")
 
-    if [[ -z "${user_name}" || -z "${user_email}" || -z "${user_domain}" || -z "${user_password}" || -z "${cloudflare_token}" ]]; then
+    if [[ -z "${user_name}" || -z "${user_email}" || -z "${user_domain}" || -z "${user_password}" ]]; then
       show_error "there is an error in the configuration file, please repair the configuration file: ${global_config_path}\n"
       return 1
     fi
@@ -249,12 +243,7 @@ load_global_config() {
     user_name=$(get_input_until_success "please input your name: ")
     user_email=$(get_input_until_success "please input your email: ")
     user_domain=$(get_input_until_success "please input your domain: ")
-    user_password=$(
-      get_input_until_success "please input your password: " \
-        '^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d!@#$%^&*()_+\-=\[\]{};:"\\|,.<>\/?]{8,}$' \
-        "password must be at least 8 characters, contain letters and numbers: $(generate_random_password)"
-    )
-    cloudflare_token=$(get_input_until_success "please input your cloudflare token: ")
+    user_password=$(get_input_until_success "please input your password: ")
 
     install_content_with_comment 600 "root:root" "$(generate_global_config)" "${global_config_path}" true
   fi
@@ -263,360 +252,8 @@ load_global_config() {
   certificate_key_path="/etc/letsencrypt/live/${user_domain}/privkey.pem"
 }
 
-# NOTE: Install certbot and apply for a certificate for user's domain
-install_certbot_binary() {
-  show_info "checking the status of certbot - "
-  type -t certbot &>/dev/null && {
-    show_text "installed\n"
-    return 0
-  }
-  show_text "not installed\n"
-
-  show_info "executing command ${package_manager} certbot python3-certbot-dns-cloudflare\n"
-  if sh -c "${package_manager} certbot python3-certbot-dns-cloudflare" &>/dev/null; then
-    show_success "installed certbot python3-certbot-dns-cloudflare\n"
-    return 0
-  else
-    show_error "please run command manually: ${package_manager} certbot python3-certbot-dns-cloudflare\n"
-    return 1
-  fi
-}
-
-apply_certificate() {
-  show_info "checking whether /etc/letsencrypt/live/${user_domain} exist\n"
-  [[ -e "/etc/letsencrypt/live/${user_domain}" ]] && {
-    show_warn "/etc/letsencrypt/live/${user_domain} is exist\n"
-    return 0
-  }
-  show_info "/etc/letsencrypt/live/${user_domain} not exist\n"
-
-  show_info "applying certificate for ${user_domain}: certbot certonly --dns-cloudflare --email ${user_email} --dns-cloudflare-credentials ${global_config_path} -d ${user_domain}\n"
-  certbot certonly --dns-cloudflare --email "${user_email}" --dns-cloudflare-credentials "${global_config_path}" -d "${user_domain}" &>/dev/null <<<'Y' || {
-    show_error "please run command manually: certbot certonly --dns-cloudflare --email ${user_email} --dns-cloudflare-credentials ${global_config_path} -d ${user_domain}\n"
-    return 1
-  }
-  show_success "successfully applyed and saved at /etc/letsencrypt/live/${user_domain}\n"
-}
-
-# NOTE: Install nginx and modify default config
-generate_nginx_conf() {
-  cat <<EOF
-user                 nginx;
-pid                  /run/nginx.pid;
-worker_processes     auto;
-worker_rlimit_nofile 65535;
-
-# Load modules
-include              /etc/nginx/modules-enabled/*.conf;
-
-events {
-    multi_accept       on;
-    worker_connections 65535;
-}
-
-http {
-    charset                utf-8;
-    sendfile               on;
-    tcp_nopush             on;
-    tcp_nodelay            on;
-    server_tokens          off;
-    log_not_found          off;
-    types_hash_max_size    2048;
-    types_hash_bucket_size 64;
-    client_max_body_size   16M;
-
-    # MIME
-    include                mime.types;
-    default_type           application/octet-stream;
-
-    # Logging
-    access_log             off;
-    error_log              /dev/null;
-
-    # SSL
-    ssl_session_timeout    1d;
-    ssl_session_cache      shared:SSL:10m;
-    ssl_session_tickets    off;
-
-    # diffie-hellman parameter for DHE ciphersuites
-    ssl_dhparam            /etc/nginx/dhparam.pem;
-
-    # Mozilla Intermediate configuration
-    ssl_protocols          TLSv1.2 TLSv1.3;
-    ssl_ciphers            ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:DHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384;
-
-    # OCSP Stapling
-    ssl_stapling           off;
-    ssl_stapling_verify    off;
-    resolver               1.1.1.1 1.0.0.1 8.8.8.8 8.8.4.4 valid=60s;
-    resolver_timeout       2s;
-
-    # Load configs
-    include                /etc/nginx/conf.d/*.conf;
-    include                /etc/nginx/sites-enabled/*;
-}
-EOF
-}
-
-generate_domain_conf() {
-  cat <<EOF
-server {
-    listen              443 ssl http2;
-    listen              [::]:443 ssl http2;
-    server_name         ${user_domain};
-    root                /var/www/${user_domain}/public;
-
-    # SSL
-    ssl_certificate     ${certificate_path};
-    ssl_certificate_key ${certificate_key_path};
-
-    # security
-    include             nginxconfig.io/security.conf;
-
-    # logging
-    access_log          /var/log/nginx/access.log combined buffer=512k flush=1m;
-    error_log           /var/log/nginx/error.log warn;
-
-    # additional config
-    include             nginxconfig.io/general.conf;
-}
-
-# HTTP redirect
-server {
-    listen      80;
-    listen      [::]:80;
-    server_name ${user_domain};
-    return      301 https://${user_domain}\$request_uri;
-}
-EOF
-}
-
-generate_security_conf() {
-  cat <<EOF
-# security headers
-add_header X-XSS-Protection          "1; mode=block" always;
-add_header X-Content-Type-Options    "nosniff" always;
-add_header Referrer-Policy           "strict-origin-when-cross-origin" always;
-add_header Content-Security-Policy   "default-src 'self' http: https: ws: wss: data: blob: 'unsafe-inline'; frame-ancestors 'self';" always;
-add_header Permissions-Policy        "interest-cohort=()" always;
-add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
-
-# . files
-location ~ /\.(?!well-known) {
-    deny all;
-}
-EOF
-}
-
-generate_general_conf() {
-  cat <<EOF
-# favicon.ico
-location = /favicon.ico {
-    log_not_found off;
-}
-
-# robots.txt
-location = /robots.txt {
-    log_not_found off;
-}
-
-# assets, media
-location ~* \.(?:css(\.map)?|js(\.map)?|jpe?g|png|gif|ico|cur|heic|webp|tiff?|mp3|m4a|aac|ogg|midi?|wav|mp4|mov|webm|mpe?g|avi|ogv|flv|wmv)$ {
-    expires 7d;
-}
-
-# svg, fonts
-location ~* \.(?:svgz?|ttf|ttc|otf|eot|woff2?)$ {
-    add_header Access-Control-Allow-Origin "*";
-    expires    7d;
-}
-
-# gzip
-gzip            on;
-gzip_vary       on;
-gzip_proxied    any;
-gzip_comp_level 6;
-gzip_types      text/plain text/css text/xml application/json application/javascript application/rss+xml application/atom+xml image/svg+xml;
-EOF
-}
-
-generate_nginxconfig_href() {
-  cat <<EOF
-https://www.digitalocean.com/community/tools/nginx?domains.0.server.redirectSubdomains=false&domains.0.https.certType=custom&domains.0.https.sslCertificate=%2Fetc%2Fletsencrypt%2Flive%2Fexample.com%2Ffullchain.pem&domains.0.https.sslCertificateKey=%2Fetc%2Fletsencrypt%2Flive%2Fexample.com%2Fprivkey.pem&domains.0.php.php=false&domains.0.routing.index=index.html&domains.0.routing.fallbackPhp=false&global.https.ocspOpenDns=false&global.security.referrerPolicy=strict-origin-when-cross-origin&global.nginx.user=nginx&global.app.lang=zhCN
-EOF
-}
-
-generate_index_html() {
-  cat <<EOF
-<!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Welcome to NGINX</title>
-    <style>
-      body {
-        margin: 0;
-        background-color: #0f172a;
-        font-family: system-ui, sans-serif;
-        color: #e2e8f0;
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-        align-items: center;
-        min-height: 100vh;
-        text-align: center;
-      }
-      h1 {
-        font-size: 3rem;
-        margin-bottom: 0.5rem;
-      }
-      p {
-        color: #94a3b8;
-        font-size: 1.1rem;
-      }
-      .badge {
-        margin-top: 1rem;
-        display: inline-block;
-        padding: 0.4rem 1rem;
-        background-color: #1e293b;
-        border-radius: 9999px;
-        font-size: 0.9rem;
-        color: #38bdf8;
-      }
-      a {
-        color: #38bdf8;
-        text-decoration: none;
-      }
-    </style>
-  </head>
-  <body>
-    <h1>Welcome to NGINX</h1>
-    <p>
-      If you see this page, the NGINX web server is successfully installed and working.
-    </p>
-    <div class="badge">Server Ready</div>
-    <p><a href="https://nginx.org" target="_blank">Learn more at nginx.org</a></p>
-  </body>
-</html>
-EOF
-}
-
-install_nginx_binary() {
-  show_info "checking the status of nginx - "
-  type -t nginx &>/dev/null && {
-    show_text "installed\n"
-    return 0
-  }
-  show_text "not installed\n"
-
-  show_info "executing command ${package_manager} nginx\n"
-  if sh -c "${package_manager} nginx" &>/dev/null; then
-    show_success "successfully installed nginx\n"
-    return 0
-  else
-    show_error "please run command manually: ${package_manager} nginx\n"
-    return 1
-  fi
-}
-
-modify_nginx_default() {
-  local user_id group_id nginx_name
-
-  # Get the name of the old nginx user
-  nginx_name=$(awk -F: '$1~/(nginx|www-data)/ {print $1; exit}' /etc/passwd)
-  # Get old uid and gid by old name
-  user_id=$(awk -F: -v name="$nginx_name" '$1==name {print $3; exit}' /etc/passwd)
-  group_id=$(awk -F: -v name="$nginx_name" '$1==name {print $4; exit}' /etc/passwd)
-
-  if [[ -z "$nginx_name" || -z "$user_id" || -z "$group_id" ]]; then
-    show_error "nginx or www-data user not found in /etc/passwd\n"
-    return 1
-  fi
-
-  show_info "stopping nginx.service\n"
-  systemctl stop nginx.service &>/dev/null || {
-    show_error "failed to stop nginx.service\n"
-    return 1
-  }
-  show_success "successfully closed nginx.service\n"
-
-  show_info "deleting old user named ${nginx_name}\n"
-  deluser --remove-all-files ${nginx_name} &>/dev/null || {
-    show_error "delete ${nginx_name} error\n"
-    return 1
-  }
-  show_success "successfully deleted user named ${nginx_name}\n"
-
-  show_info "creating new group named nginx\n"
-  addgroup --system --gid "${group_id}" nginx &>/dev/null || {
-    show_error "failed to create group named nginx\n"
-    return 1
-  }
-  show_success "successfully created group named nginx\n"
-
-  show_info "creating new user named nginx\n"
-  adduser --system --uid "${user_id}" --gid "${group_id}" --home /var/www --shell /usr/sbin/nologin nginx &>/dev/null || {
-    show_error "failed to create user named nginx\n"
-    return 1
-  }
-  show_success "successfully created user named nginx\n"
-
-  remove_content_with_comment "/var/www/html"
-  remove_content_with_comment "/etc/nginx/sites-enabled"
-  remove_content_with_comment "/etc/nginx/sites-available"
-
-  show_info "checking for diffie-hellman key at /etc/nginx/dhparam.pem\n"
-  if [[ -f "/etc/nginx/dhparam.pem" ]]; then
-    if openssl dhparam -check -in /etc/nginx/dhparam.pem &>/dev/null; then
-      show_success "valid diffie-hellman key already exists at /etc/nginx/dhparam.pem\n"
-    else
-      show_warn "existing /etc/nginx/dhparam.pem is invalid, regenerating...\n"
-      if openssl dhparam -out /etc/nginx/dhparam.pem 2048 &>/dev/null; then
-        show_success "successfully regenerated diffie-hellman key\n"
-      else
-        show_error "failed to regenerate diffie-hellman key\n"
-        return 1
-      fi
-    fi
-  else
-    show_info "diffie-hellman key not found, generating...\n"
-    if openssl dhparam -out /etc/nginx/dhparam.pem 2048 &>/dev/null; then
-      show_success "successfully generated diffie-hellman key\n"
-    else
-      show_error "failed to generate diffie-hellman key\n"
-      return 1
-    fi
-  fi
-
-  if [[ -f /etc/logrotate.d/nginx ]]; then
-    sed -Ei 's/www-data/nginx/g' /etc/logrotate.d/nginx
-  fi
-  systemctl daemon-reload && systemctl restart logrotate.service
-
-  install_content_with_comment 644 "root:root" "$(generate_nginx_conf)" "/etc/nginx/nginx.conf" true
-  install_content_with_comment 644 "root:root" "$(generate_domain_conf)" "/etc/nginx/sites-available/${user_domain}.conf" true
-  install_content_with_comment 644 "root:root" "$(generate_security_conf)" "/etc/nginx/nginxconfig.io/security.conf" true
-  install_content_with_comment 644 "root:root" "$(generate_general_conf)" "/etc/nginx/nginxconfig.io/general.conf" true
-  install_content_with_comment 644 "root:root" "$(generate_nginxconfig_href)" "/etc/nginx/nginxconfig.txt" true
-  install_content_with_comment 644 "root:root" "$(generate_index_html)" "/var/www/${user_domain}/public/index.html" true
-
-  show_info "creating directory /etc/nginx/sites-enabled\n"
-  install -dm755 "/etc/nginx/sites-enabled"
-
-  show_info "creating link /etc/nginx/sites-available/${user_domain}.conf to /etc/nginx/sites-enabled/${user_domain}.conf\n"
-  ln -s "/etc/nginx/sites-available/${user_domain}.conf" "/etc/nginx/sites-enabled/${user_domain}.conf" &>/dev/null
-
-  show_info "starting nginx.service\n"
-  systemctl daemon-reload && systemctl start nginx.service &>/dev/null || {
-    show_error "failed to start nginx.service\n"
-    return 1
-  }
-  show_success "successfully started nginx.service\n"
-}
-
-# NOTE: Install sing-box and set up agent services
-genetate_sing-box_config() {
+# install sing-box and set up agent services
+genetate_sing_box_config() {
   cat <<EOF
 {
   "log": {
@@ -628,7 +265,7 @@ genetate_sing-box_config() {
     {
       "type": "trojan",
       "listen": "::",
-      "listen_port": 8080,
+      "listen_port": 10080,
       "users": [
         {
           "name": "${user_name}",
@@ -649,7 +286,7 @@ genetate_sing-box_config() {
     {
       "type": "hysteria2",
       "listen": "::",
-      "listen_port": 8053,
+      "listen_port": 10053,
       "users": [
         {
           "name": "${user_name}",
@@ -669,7 +306,7 @@ genetate_sing-box_config() {
 EOF
 }
 
-install_sing-box_binary() {
+install_sing_box_binary() {
   local latest_release latest_version package_name download_url
 
   show_info "checking the status of sing-box ... "
@@ -721,9 +358,9 @@ install_sing-box_binary() {
   show_success "successfully added system services for sing-box\n"
 }
 
-modify_sing-box_default() {
-  install_content_with_comment 644 "root:root" "$(genetate_sing-box_config)" "/etc/sing-box/config.json" true
-  # Restart sing-box system service
+modify_sing_box_default() {
+  install_content_with_comment 644 "root:root" "$(genetate_sing_box_config)" "/etc/sing-box/config.json" true
+  # restart sing-box system service
   show_info "restarting sing-box system service\n"
   systemctl start sing-box &>/dev/null || {
     show_error "failed to restart system services for sing-box\n"
@@ -732,40 +369,18 @@ modify_sing-box_default() {
   show_success "successfully restarted system services for sing-box\n"
 }
 
-generate_mihomo_subscription() {
-  local yaml_name mihomo_dir
-
-  yaml_name="mihomo.yaml"
-  mihomo_dir="/var/www/${user_domain}/public/download"
-
-  install_content_with_comment 644 "root:root" "" "${mihomo_dir}/${yaml_name}" true
-
-  show_info "downloading mihomo configuration file template\n"
-  curl -fsSL 'https://raw.githubusercontent.com/rehuony/resource/refs/heads/main/template/config/mihomo.yaml' -o "${mihomo_dir}/${yaml_name}" 2>/dev/null || {
-    show_error "failed to download mihomo configuration file\n"
-    return 1
-  }
-  show_success "successfully download mihomo configuration file\n"
-
-  sed -Ei "s/<<user_ip>>/${user_ip}/Ig" "${mihomo_dir}/${yaml_name}"
-  sed -Ei "s/<<user_domain>>/${user_domain}/Ig" "${mihomo_dir}/${yaml_name}"
-  sed -Ei "s/<<user_password>>/${user_password}/Ig" "${mihomo_dir}/${yaml_name}"
+debian_installer_sing_box() {
+  load_global_config      # loading the configuration file
+  install_sing_box_binary # install sing-box binary
+  modify_sing_box_default # modify the default configuration file of sing-box
 }
 
-# NOTE: Main program entry
-# Loading the configuration file
-load_global_config
-# Install certbot
-install_certbot_binary
-# Apply for a certificate for the domain name
-apply_certificate
-# Install nginx
-install_nginx_binary
-# Modify the default configuration of nginx
-modify_nginx_default
-# Install sing-box
-install_sing-box_binary
-# Modify the default configuration file of sing-box
-modify_sing-box_default
-# Generate mihomo subscription file
-generate_mihomo_subscription
+# main program entry
+case "${os_name}" in
+  ubuntu | debian)
+    debian_installer_sing_box
+    ;;
+  *)
+    show_error "unsupported system for ${os_name}\n"
+    ;;
+esac

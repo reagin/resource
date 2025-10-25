@@ -1,19 +1,19 @@
 #!/usr/bin/env bash
 
-# shellscript.sh
-# Author: rehuony
-# Description: Template file used to create shellscript
-# GitHub: https://github.com/rehuony/resource
+# name: shellscript.sh
+# author: rehuony
+# github: https://github.com/rehuony/resource
+# description: template file used to create shellscript
 
-# Enable the following shell options:
-# -E: Ensure that ERR trap is also valid in function, subshell, and command replacements
-# -e: When any command exits in a non-zero state, exit the script immediately
-# -u: When using undefined variables, the script will report an error and exit
-# -x: The command and its parameters will be printed when executing the command (for debugging)
-# -o pipefail: When any command in the pipeline fails, the entire pipeline returns to a failed state
+# enable the following shell options:
+# -E: ensure that err trap is also valid in function, subshell, and command replacements
+# -e: when any command exits in a non-zero state, exit the script immediately
+# -u: when using undefined variables, the script will report an error and exit
+# -x: the command and its parameters will be printed when executing the command (for debugging)
+# -o: pipefail: when any command in the pipeline fails, the entire pipeline returns to a failed state
 set -Eeuxo pipefail
 
-# Setting up temporary working directory when script runs
+# setting up temporary working directory when script runs
 trap remove_temp_directory EXIT
 
 remove_temp_directory() {
@@ -24,26 +24,26 @@ remove_temp_directory() {
 }
 
 TEMPDIRECTORY=$(mktemp -dt rehuony_directory_XXXXXX 2>/dev/null) || {
-  printf "\e[38;2;215;0;0mError: failed to create temporary directory\e[0m\n"
+  printf "\x1B[38;2;215;0;0mError: failed to create temporary directory\x1B[0m\n"
   exit 1
 }
 
 pushd "${TEMPDIRECTORY}" &>/dev/null || {
-  printf "\e[38;2;215;0;0mError: failed to pushd temporary directory\e[0m\n"
+  printf "\x1B[38;2;215;0;0mError: failed to pushd temporary directory\x1B[0m\n"
   exit 1
 }
 
-# Check whether the execution user is root
+# check whether the execution user is root
 check_permission() {
-  printf "\e[2mCurrent user is: ${USER}\e[0m\n"
+  printf "\x1B[2mcurrent user is: ${USER}\x1B[0m\n"
 
   if [[ "${EUID}" != 0 ]]; then
-    printf "\e[38;2;215;0;0mError: please run the script with root\e[0m\n"
+    printf "\x1B[38;2;215;0;0mError: please run the script with root\x1B[0m\n"
     exit 1
   fi
 }
 
-# Check the environment of the current script
+# check the environment of the current script
 check_environment() {
   [[ -f "/etc/os-release" ]] && source /etc/os-release
 
@@ -76,15 +76,15 @@ check_environment() {
       package_installer="rpm -i"
       ;;
     *)
-      printf "\e[38;2;215;0;0mError: unsupported system for ${os_name}\e[0m\n"
+      printf "\x1B[38;2;215;0;0mError: unsupported system for ${os_name}\x1B[0m\n"
       exit 1
       ;;
   esac
 
-  printf "\e[2mCurrent system is: ${os_arch}_${os_name}_${os_type}\e[0m\n"
+  printf "\x1B[2mcurrent system is: ${os_arch}_${os_name}_${os_type}\x1B[0m\n"
 }
 
-# Check whether the instructions used in the current script exist
+# check whether the instructions used in the current script exist
 check_dependencies() {
   local command_dependency package_dependency
 
@@ -95,29 +95,29 @@ check_dependencies() {
     return 0
   fi
 
-  printf "\e[2mChecking command dependencies now ...\e[0m\n"
+  printf "\x1B[2mchecking command dependencies now ...\x1B[0m\n"
 
   for index in "${!command_dependency[@]}"; do
-    printf "\e[4C\e[2m${command_dependency[index]} - "
+    printf "\x1B[4C\x1B[2m${command_dependency[index]} - "
 
     if type -t "${command_dependency[index]}" &>/dev/null; then
-      printf "installed\e[0m\n"
+      printf "installed\x1B[0m\n"
     else
-      printf "not installed\e[0m\n"
-      printf "\e[8C\e[2m${package_manager} ${package_dependency[index]} ... "
+      printf "not installed\x1B[0m\n"
+      printf "\x1B[8C\x1B[2m${package_manager} ${package_dependency[index]} ... "
 
       if sh -c "${package_manager} ${package_dependency[index]}" &>/dev/null; then
-        printf "done\e[0m\n"
+        printf "done\x1B[0m\n"
       else
-        printf "error\e[0m\n"
-        printf "\e[38;2;215;0;0mError: please run the command manually\e[0m\n"
+        printf "error\x1B[0m\n"
+        printf "\x1B[38;2;215;0;0mError: please run the command manually\x1B[0m\n"
         exit 1
       fi
     fi
   done
 }
 
-# Load external script resources
+# load external script resources
 source_external_scripts() {
   local script_file external_script_links command_dependency package_dependency
 
@@ -129,20 +129,20 @@ source_external_scripts() {
     return 0
   fi
 
-  printf "\e[2mLoading external scripts now ...\e[0m\n"
+  printf "\x1B[2mloading external scripts now ...\x1B[0m\n"
 
   for link in "${external_script_links[@]}"; do
-    printf "\e[4C\e[2mloading ${link} - "
+    printf "\x1B[4C\x1B[2mloading ${link} - "
 
     script_file=$(mktemp -p "${TEMPDIRECTORY}" -t script_XXXXXX.sh 2>/dev/null) || {
-      printf "error\e[0m\n"
-      printf "\e[38;2;215;0;0mError: failed to create temporary file\e[0m\n"
+      printf "error\x1B[0m\n"
+      printf "\x1B[38;2;215;0;0mError: failed to create temporary file\x1B[0m\n"
       exit 1
     }
 
     curl -fsSL "${link}" -o "${script_file}" 2>/dev/null || {
-      printf "error\e[0m\n"
-      printf "\e[38;2;215;0;0mError: failed to download external script\e[0m\n"
+      printf "error\x1B[0m\n"
+      printf "\x1B[38;2;215;0;0mError: failed to download external script\x1B[0m\n"
       exit 1
     }
 
@@ -164,42 +164,42 @@ source_external_scripts() {
       fi
     done
 
-    printf "done\e[0m\n"
+    printf "done\x1B[0m\n"
   done
 
   if [[ ${#command_dependency[@]} == 0 ]]; then
     return 0
   fi
 
-  printf "\e[2mInstalling external command dependencies ...\e[0m\n"
+  printf "\x1B[2minstalling external command dependencies ...\x1B[0m\n"
 
   for index in "${!command_dependency[@]}"; do
-    printf "\e[4C\e[2m${command_dependency[index]} - "
+    printf "\x1B[4C\x1B[2m${command_dependency[index]} - "
 
     if type -t "${command_dependency[index]}" &>/dev/null; then
-      printf "installed\e[0m\n"
+      printf "installed\x1B[0m\n"
     else
-      printf "not installed\e[0m\n"
-      printf "\e[8C\e[2m${package_manager} ${package_dependency[index]} ... "
+      printf "not installed\x1B[0m\n"
+      printf "\x1B[8C\x1B[2m${package_manager} ${package_dependency[index]} ... "
 
       if sh -c "${package_manager} ${package_dependency[index]}" &>/dev/null; then
-        printf "done\e[0m\n"
+        printf "done\x1B[0m\n"
       else
-        printf "error\e[0m\n"
-        printf "\e[38;2;215;0;0mError: please run the command manually\e[0m\n"
+        printf "error\x1B[0m\n"
+        printf "\x1B[38;2;215;0;0mError: please run the command manually\x1B[0m\n"
         exit 1
       fi
     fi
   done
 }
 
-# Check whether the execution user is root
-# check_permission # TODO: Delete comments to enable functions
-# Check the environment of the current script
-# check_environment # TODO: Delete comments to enable functions
-# Check whether the instructions used in the current script exist
-# check_dependencies # TODO: Delete comments to enable functions
-# Source external script resources
-# source_external_scripts # TODO: Delete comments to enable functions
+# check whether the execution user is root
+# check_permission # TODO: delete comments to enable functions
+# check the environment of the current script
+# check_environment # TODO: delete comments to enable functions
+# check whether the instructions used in the current script exist
+# check_dependencies # TODO: delete comments to enable functions
+# source external script resources
+# source_external_scripts # TODO: delete comments to enable functions
 
-# TODO: Please write the main program of the script below
+# TODO: please write the main program of the script below
