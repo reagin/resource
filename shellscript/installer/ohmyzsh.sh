@@ -257,13 +257,10 @@ install_zsh_shell() {
     fi
   fi
 
-  show_info "changing default shell for ${USER} to ${zsh_path}\n"
-  show_text "please input your password: "
-  if chsh -s "${zsh_path}" 2>/dev/null; then
-    show_text "\n"
+  show_info "changing default shell for ${USER} to ${zsh_path} (maybe need password)\n"
+  if chsh -s "${zsh_path}"; then
     show_success "default shell changed to zsh for ${USER}\n"
   else
-    show_text "\n"
     show_error "failed to change default shell automatically\n"
     return 1
   fi
