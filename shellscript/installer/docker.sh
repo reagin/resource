@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 
 # name: docker.sh
-# author: rehuony
-# github: https://github.com/rehuony/resource
+# author: reagin
+# github: https://github.com/reagin/resource
 # description: install docker engine for linux
 
 # enable the following shell options:
@@ -22,7 +22,7 @@ remove_temp_directory() {
   fi
 }
 
-TEMPDIRECTORY=$(mktemp -dt rehuony_directory_XXXXXX 2>/dev/null) || {
+TEMPDIRECTORY=$(mktemp -dt reagin_directory_XXXXXX 2>/dev/null) || {
   printf "\x1B[38;2;215;0;0mError: failed to create temporary directory\x1B[0m\n"
   exit 1
 }
@@ -123,8 +123,8 @@ source_external_scripts() {
   command_dependency=()
   package_dependency=()
   external_script_links=(
-    'https://raw.githubusercontent.com/rehuony/resource/refs/heads/main/shellscript/library/message.lib.sh'
-    'https://raw.githubusercontent.com/rehuony/resource/refs/heads/main/shellscript/library/utility.lib.sh'
+    'https://raw.githubusercontent.com/reagin/resource/refs/heads/main/shellscript/library/message.lib.sh'
+    'https://raw.githubusercontent.com/reagin/resource/refs/heads/main/shellscript/library/utility.lib.sh'
   )
 
   if [[ ${#external_script_links[@]} == 0 ]]; then

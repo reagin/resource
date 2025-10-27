@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 
 # name: oh-my-zsh.sh
-# author: rehuony
-# github: https://github.com/rehuony/resource
+# author: reagin
+# github: https://github.com/reagin/resource
 # description: customize the terminal using oh-my-zsh
 
 # enable the following shell options:
@@ -22,7 +22,7 @@ remove_temp_directory() {
   fi
 }
 
-TEMPDIRECTORY=$(mktemp -dt rehuony_directory_XXXXXX 2>/dev/null) || {
+TEMPDIRECTORY=$(mktemp -dt reagin_directory_XXXXXX 2>/dev/null) || {
   printf "\x1B[38;2;215;0;0mError: failed to create temporary directory\x1B[0m\n"
   exit 1
 }
@@ -113,8 +113,8 @@ source_external_scripts() {
   command_dependency=()
   package_dependency=()
   external_script_links=(
-    'https://raw.githubusercontent.com/rehuony/resource/refs/heads/main/shellscript/library/message.lib.sh'
-    'https://raw.githubusercontent.com/rehuony/resource/refs/heads/main/shellscript/library/utility.lib.sh'
+    'https://raw.githubusercontent.com/reagin/resource/refs/heads/main/shellscript/library/message.lib.sh'
+    'https://raw.githubusercontent.com/reagin/resource/refs/heads/main/shellscript/library/utility.lib.sh'
   )
 
   if [[ ${#external_script_links[@]} == 0 ]]; then
@@ -271,7 +271,7 @@ install_zsh_shell() {
 install_ohmyzsh_plugin() {
   local installer_url installer_file
 
-  installer_url="https://raw.githubusercontent.com/rehuony/ohmyzsh/custom/tools/install.sh"
+  installer_url="https://raw.githubusercontent.com/reagin/ohmyzsh/custom/tools/install.sh"
 
   installer_file=$(mktemp -p "${TEMPDIRECTORY}" -t ohmyzsh_installer_XXXX.sh 2>/dev/null) || {
     show_error "failed to create temporary installer file\n"
@@ -286,9 +286,9 @@ install_ohmyzsh_plugin() {
     return 1
   fi
 
-  show_info "running oh-my-zsh installer for ${USER} (REPO=${REPO:-rehuony/ohmyzsh} BRANCH=${BRANCH:-custom})\n\n"
+  show_info "running oh-my-zsh installer for ${USER} (REPO=${REPO:-reagin/ohmyzsh} BRANCH=${BRANCH:-custom})\n\n"
 
-  env REPO="${REPO:-rehuony/ohmyzsh}" BRANCH="${BRANCH:-custom}" RUNZSH=no CHSH=no sh "${installer_file}"
+  env REPO="${REPO:-reagin/ohmyzsh}" BRANCH="${BRANCH:-custom}" RUNZSH=no CHSH=no sh "${installer_file}"
 }
 
 debian_installer_ohmyzsh() {

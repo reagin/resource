@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 
 # name: shellscript.lib.sh
-# author: rehuony
-# github: https://github.com/rehuony/resource
+# author: reagin
+# github: https://github.com/reagin/resource
 # description: template file used to create shellscript library
 
 # enable the following shell options:

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 
 # name: message.lib.sh
-# author: rehuony
-# github: https://github.com/rehuony/resource
+# author: reagin
+# github: https://github.com/reagin/resource
 # description: format output information
 
 # enable the following shell options:

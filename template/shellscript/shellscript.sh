@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 
 # name: shellscript.sh
-# author: rehuony
-# github: https://github.com/rehuony/resource
+# author: reagin
+# github: https://github.com/reagin/resource
 # description: template file used to create shellscript
 
 # enable the following shell options:
@@ -23,7 +23,7 @@ remove_temp_directory() {
   fi
 }
 
-TEMPDIRECTORY=$(mktemp -dt rehuony_directory_XXXXXX 2>/dev/null) || {
+TEMPDIRECTORY=$(mktemp -dt reagin_directory_XXXXXX 2>/dev/null) || {
   printf "\x1B[38;2;215;0;0mError: failed to create temporary directory\x1B[0m\n"
   exit 1
 }
