@@ -12,8 +12,14 @@
 # -o: pipefail: when any command in the pipeline fails, the entire pipeline returns to a failed state
 set -Eeuo pipefail
 
-lib_command_dependency=('grep' 'awk' 'md5sum' 'uuidgen')
-lib_package_dependency=('grep' 'gawk' 'coreutils' 'uuid-runtime')
+export lib_command_dependency=('grep' 'awk' 'md5sum' 'uuidgen')
+export lib_package_dependency=('grep' 'gawk' 'coreutils' 'uuid-runtime')
+
+readonly sgr_reset="\x1B[0m"
+readonly foreground_color_red="\x1B[38;2;215;0;0m"
+readonly foreground_color_grey="\x1B[38;2;128;128;128m"
+readonly foreground_color_green="\x1B[38;2;0;175;0m"
+readonly foreground_color_yellow="\x1B[38;2;215;215;95m"
 
 # -------------------------------------------------------------------
 # install_content
@@ -34,27 +40,26 @@ lib_package_dependency=('grep' 'gawk' 'coreutils' 'uuid-runtime')
 # returns:
 #   0 - install content success
 #   1 - parameter error or operation failed
-#   2 - target file already exists and is backed up
 #
 # usage:
 #   install_content 644 "root:root" "content" "/path/to/destination"
 # -------------------------------------------------------------------
 install_content() {
-  local mode owner group content destination remove_flag tempfile
+  local mode owner group content destination removeflag tempfile
 
   mode="${1}"
   owner="${2%%:*}"
   group="${2##*:}"
   content="${3}"
   destination="${4}"
-  remove_flag="${5:-false}"
+  removeflag="${5:-false}"
 
   # Exit if the key parameter is empty
-  [[ -z "${mode}" || -z "${owner}" || -z "${group}" || -z "${destination}" ]] && return 1
-  # Ensure file permissions are in 644 format
+  [[ -n "${mode}" && -n "${owner}" && -n "${group}" && -n "${destination}" ]] || return 1
+  # Ensure file permission is in 644 format
   [[ "${mode}" =~ ^[0-7]{3}$ ]] || return 1
   # Make sure the target path is an absolute path
-  [[ "${destination:0:1}" == "/" ]] || return 1
+  [[ "${destination}" =~ ^\/ ]] || return 1
   # Make sure the target path is not a directory file
   [[ -d "${destination}" ]] && return 1
 
@@ -67,12 +72,8 @@ install_content() {
     return 1
   }
 
-  rm -rf "${tempfile}"
-  [[ "${remove_flag}" == "true" ]] && rm -rf "${destination}.bak"
-
-  if [[ -e "${destination}.bak" ]]; then
-    return 2
-  fi
+  [[ -f "${tempfile}" ]] && rm -rf "${tempfile}"
+  [[ "${removeflag}" == "true" ]] && rm -rf "${destination}.bak"
 }
 
 # -------------------------------------------------------------------
@@ -95,13 +96,11 @@ install_content() {
 #   install_content_with_comment 644 "root:root" "content" "/path/to/destination"
 # -------------------------------------------------------------------
 install_content_with_comment() {
-  printf "\x1B[38;2;0;135;215m[INFO]\x1B[0m \x1B[2minstalling content for ${4}\n\x1B[0m"
+  echo -ne "${foreground_color_grey}installing content for ${4} - "
   if install_content "${@}"; then
-    printf "\x1B[38;2;0;175;0m[SUCCESS]\x1B[0m \x1B[2minstalled content for ${4}\n\x1B[0m"
-  elif [[ "$?" == 2 ]]; then
-    printf "\x1B[38;2;215;215;95m[WARN]\x1B[0m \x1B[2mbackup old file to ${4}.bak\n\x1B[0m"
+    echo -ne "${foreground_color_green}done${sgr_reset}\n"
   else
-    printf "\x1B[38;2;215;0;0m[ERROR]\x1B[0m \x1B[2mfailed to install content for ${4}\n\x1B[0m"
+    echo -ne "${foreground_color_red}error${sgr_reset}\n"
   fi
 }
 
@@ -129,11 +128,9 @@ remove_content() {
   destination="${1}"
 
   # Make sure the target path is an absolute path
-  [[ -n "${destination}" && "${destination:0:1}" == "/" ]] || return 1
-
-  case "${destination}" in
-    '/' | '/.' | '/..' | '/./' | '/../') return 1 ;;
-  esac
+  [[ -n "${destination}" && "${destination}" =~ ^\/ ]] || return 1
+  # Make sure the path does not contain special fields
+  [[ "$destination" =~ ^(/(\.\.?|)$|(/|^)\.\.(/|$)|(/|^)\.(/|$)) ]] && return 1
 
   rm -rf "${destination}" 2>/dev/null || return 1
 }
@@ -152,12 +149,137 @@ remove_content() {
 #   remove_content_with_comment "/path/to/destination"
 # -------------------------------------------------------------------
 remove_content_with_comment() {
-  printf "\x1B[38;2;0;135;215m[INFO]\x1B[0m \x1B[2mremoving content for ${1}\n\x1B[0m"
+  echo -ne "${foreground_color_grey}removing content for ${1} - "
   if remove_content "$1"; then
-    printf "\x1B[38;2;0;175;0m[SUCCESS]\x1B[0m \x1B[2mremoved content for ${1}\n\x1B[0m"
+    echo -ne "${foreground_color_green}done${sgr_reset}\n"
   else
-    printf "\x1B[38;2;215;0;0m[ERROR]\x1B[0m \x1B[2mfailed to remove content for ${1}\n\x1B[0m"
+    echo -ne "${foreground_color_red}error${sgr_reset}\n"
   fi
+}
+
+# -------------------------------------------------------------------
+# get_input_message
+#
+# description:
+#   prompts the user for input with a given message and returns the
+#   input
+#
+# arguments:
+#   $1 - prompt message to display to the user
+#
+# returns:
+#   the user input
+#
+# usage:
+#   get_input_message "prompt information"
+# -------------------------------------------------------------------
+get_input_message() {
+  local prompt input_message
+
+  prompt="${1:-}"
+
+  read -rep "${prompt}" input_message </dev/tty
+  echo -ne "${input_message}"
+}
+
+# -------------------------------------------------------------------
+# get_input_until_success
+#
+# description:
+#   continuously prompts the user for input with a given message
+#   until valid input is provided. optionally validates the input
+#   against a regular expression and displays a custom error message
+#   if validation fails
+#
+# arguments:
+#   $1 - prompt message to display to the user
+#   $2 - (optional) regular expression to validate the input
+#   $3 - (optional) error message to display if validation fails
+#
+# returns:
+#   echoes the valid user input to stdout
+#
+# usage:
+#   get_input_until_success "enter your name: "
+#   get_input_until_success "enter a number: " '^[0-9]+$' "input must be a number"
+# -------------------------------------------------------------------
+get_input_until_success() {
+  local prompt validate error_msg input_message
+
+  prompt="${1:-}"
+  validate="${2:-}"
+  error_msg="${3:-}"
+
+  while read -rep "${prompt}" input_message </dev/tty; do
+    if [[ -z "${input_message}" ]]; then
+      echo -ne "${foreground_color_grey}input cannot be empty, please try again\n${sgr_reset}" >&2
+      continue
+    elif [[ -n "${validate}" ]]; then
+      if ! echo "$input_message" | grep -Pq "$validate"; then
+        echo -ne "${foreground_color_yellow}${error_msg}\n${sgr_reset}" >&2
+        continue
+      fi
+    fi
+
+    break
+  done
+
+  echo -ne "${input_message}"
+}
+
+# -------------------------------------------------------------------
+# get_global_ip
+#
+# description:
+#   retrieves the public/global ip address of the current machine by
+#   querying an external api
+#
+# returns:
+#   the global ip address to stdout
+#
+# usage:
+#   get_global_ip
+# -------------------------------------------------------------------
+get_global_ip() {
+  echo -ne "$(curl -fsSL https://api.ip.sb/ip -A Mozilla 2>/dev/null)"
+}
+
+# -------------------------------------------------------------------
+# generate_random_uuid
+#
+# description:
+#   generates a random uuid (universally unique identifier) using the
+#   uuidgen command with the -r flag to produce a random-based uuid
+#
+# returns:
+#   the generated uuid to stdout
+#
+# usage:
+#   generate_random_uuid
+# -------------------------------------------------------------------
+generate_random_uuid() {
+  echo -ne "$(uuidgen -r)"
+}
+
+# -------------------------------------------------------------------
+# generate_random_password
+#
+# description:
+#   generates a random password by reading 32 bytes from /dev/random,
+#   removing null bytes, and then hashing the result with md5sum to
+#   produce a fixed-length hexadecimal string
+#
+# returns:
+#   the generated password (md5 hash) to stdout
+#
+# usage:
+#   generate_random_password
+# -------------------------------------------------------------------
+generate_random_password() {
+  local random_password
+
+  random_password=$(dd if=/dev/random bs=32 count=1 status=none | tr -d '\0')
+  echo -ne "$random_password" | md5sum | awk '{print $1}'
 }
 
 # -------------------------------------------------------------------
@@ -196,129 +318,4 @@ load_ini_config() {
       }
     }
   ' "${ini_path}"
-}
-
-# -------------------------------------------------------------------
-# get_global_ip
-#
-# description:
-#   retrieves the public/global ip address of the current machine by
-#   querying an external api
-#
-# returns:
-#   the global ip address to stdout
-#
-# usage:
-#   get_global_ip
-# -------------------------------------------------------------------
-get_global_ip() {
-  printf "$(curl -fsSL https://api.ip.sb/ip -A Mozilla 2>/dev/null)"
-}
-
-# -------------------------------------------------------------------
-# get_input_message
-#
-# description:
-#   prompts the user for input with a given message and returns the
-#   input
-#
-# arguments:
-#   $1 - prompt message to display to the user
-#
-# returns:
-#   the user input
-#
-# usage:
-#   get_input_message "prompt information"
-# -------------------------------------------------------------------
-get_input_message() {
-  local prompt input_message
-
-  prompt="${1:-}"
-
-  read -e -p "${prompt}" input_message </dev/tty
-  printf "%s" "${input_message}"
-}
-
-# -------------------------------------------------------------------
-# get_input_until_success
-#
-# description:
-#   continuously prompts the user for input with a given message
-#   until valid input is provided. optionally validates the input
-#   against a regular expression and displays a custom error message
-#   if validation fails
-#
-# arguments:
-#   $1 - prompt message to display to the user
-#   $2 - (optional) regular expression to validate the input
-#   $3 - (optional) error message to display if validation fails
-#
-# returns:
-#   echoes the valid user input to stdout
-#
-# usage:
-#   get_input_until_success "enter your name: "
-#   get_input_until_success "enter a number: " '^[0-9]+$' "input must be a number"
-# -------------------------------------------------------------------
-get_input_until_success() {
-  local prompt validate error_msg input_message
-
-  prompt="${1:-}"
-  validate="${2:-}"
-  error_msg="${3:-}"
-
-  while read -e -p "${prompt}" input_message </dev/tty; do
-    if [[ -z "${input_message}" ]]; then
-      printf "\x1B[38;2;215;215;95minput cannot be empty, please try again\n\x1B[0m" >&2
-      continue
-    elif [[ -n "${validate}" ]]; then
-      if ! echo "$input_message" | grep -Pq "$validate"; then
-        printf "\x1B[38;2;215;215;95m${error_msg}\n\x1B[0m" >&2
-        continue
-      fi
-    fi
-
-    break
-  done
-
-  printf "%s" "${input_message}"
-}
-
-# -------------------------------------------------------------------
-# generate_random_uuid
-#
-# description:
-#   generates a random uuid (universally unique identifier) using the
-#   uuidgen command with the -r flag to produce a random-based uuid
-#
-# returns:
-#   the generated uuid to stdout
-#
-# usage:
-#   generate_random_uuid
-# -------------------------------------------------------------------
-generate_random_uuid() {
-  printf "%s" "$(uuidgen -r)"
-}
-
-# -------------------------------------------------------------------
-# generate_random_password
-#
-# description:
-#   generates a random password by reading 32 bytes from /dev/random,
-#   removing null bytes, and then hashing the result with md5sum to
-#   produce a fixed-length hexadecimal string
-#
-# returns:
-#   the generated password (md5 hash) to stdout
-#
-# usage:
-#   generate_random_password
-# -------------------------------------------------------------------
-generate_random_password() {
-  local random_password
-
-  random_password=$(dd if=/dev/random bs=32 count=1 status=none | tr -d '\0')
-  printf "%s" "$random_password" | md5sum | awk '{print $1}'
 }

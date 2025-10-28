@@ -13,8 +13,8 @@
 # -o: pipefail: When any command in the pipeline fails, the entire pipeline returns to a failed state
 set -Eeuxo pipefail
 
-lib_command_dependency=() # CONFIG: commands appearing in script library
-lib_package_dependency=() # CONFIG: corresponding package name of the command
+export lib_command_dependency=() # CONFIG: commands appearing in script library
+export lib_package_dependency=() # CONFIG: corresponding package name of the command
 
 # -------------------------------------------------------------------
 # function_name
