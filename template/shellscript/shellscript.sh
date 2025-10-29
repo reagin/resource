@@ -24,27 +24,28 @@ remove_temp_directory() {
 }
 
 TEMPDIRECTORY=$(mktemp -dt reagin_directory_XXXXXX 2>/dev/null) || {
-  printf "\x1B[38;2;215;0;0mError: failed to create temporary directory\x1B[0m\n"
+  echo -ne "\x1B[38;2;215;0;0mError: failed to create temporary directory\x1B[0m\n"
   exit 1
 }
 
 pushd "${TEMPDIRECTORY}" &>/dev/null || {
-  printf "\x1B[38;2;215;0;0mError: failed to pushd temporary directory\x1B[0m\n"
+  echo -ne "\x1B[38;2;215;0;0mError: failed to pushd temporary directory\x1B[0m\n"
   exit 1
 }
 
-# check whether the execution user is root
+# check whether the current user's permission is root
 check_permission() {
-  printf "\x1B[2mcurrent user is: ${USER}\x1B[0m\n"
+  echo -ne "\x1B[38;2;128;128;128mcurrent user is: ${USER}\x1B[0m\n"
 
   if [[ "${EUID}" != 0 ]]; then
-    printf "\x1B[38;2;215;0;0mError: please run the script with root\x1B[0m\n"
+    echo -ne "\x1B[38;2;215;0;0mError: please run the script with root\x1B[0m\n"
     exit 1
   fi
 }
 
 # check the environment of the current script
 check_environment() {
+  # shellcheck disable=SC1091
   [[ -f "/etc/os-release" ]] && source /etc/os-release
 
   os_name=$(echo -ne "${NAME}" | awk '{print tolower($1)}')
@@ -76,12 +77,12 @@ check_environment() {
       package_installer="rpm -i"
       ;;
     *)
-      printf "\x1B[38;2;215;0;0mError: unsupported system for ${os_name}\x1B[0m\n"
+      echo -ne "\x1B[38;2;215;0;0mError: unsupported system for ${os_name}\x1B[0m\n"
       exit 1
       ;;
   esac
 
-  printf "\x1B[2mcurrent system is: ${os_arch}_${os_name}_${os_type}\x1B[0m\n"
+  echo -ne "\x1B[38;2;128;128;128mcurrent system is: ${os_name}_${os_arch}_${os_type}\x1B[0m\n"
 }
 
 # check whether the instructions used in the current script exist
@@ -95,22 +96,22 @@ check_dependencies() {
     return 0
   fi
 
-  printf "\x1B[2mchecking command dependencies now ...\x1B[0m\n"
+  echo -ne "\x1B[2mchecking command dependencies now ...\x1B[0m\n"
 
   for index in "${!command_dependency[@]}"; do
-    printf "\x1B[4C\x1B[2m${command_dependency[index]} - "
+    echo -ne "\x1B[4C\x1B[2m${command_dependency[index]} - "
 
     if type -t "${command_dependency[index]}" &>/dev/null; then
-      printf "installed\x1B[0m\n"
+      echo -ne "installed\x1B[0m\n"
     else
-      printf "not installed\x1B[0m\n"
-      printf "\x1B[8C\x1B[2m${package_manager} ${package_dependency[index]} ... "
+      echo -ne "not installed\x1B[0m\n"
+      echo -ne "\x1B[8C\x1B[2m${package_manager} ${package_dependency[index]} ... "
 
       if sh -c "${package_manager} ${package_dependency[index]}" &>/dev/null; then
-        printf "done\x1B[0m\n"
+        echo -ne "done\x1B[0m\n"
       else
-        printf "error\x1B[0m\n"
-        printf "\x1B[38;2;215;0;0mError: please run the command manually\x1B[0m\n"
+        echo -ne "error\x1B[0m\n"
+        echo -ne "\x1B[38;2;215;0;0mError: please run the command manually\x1B[0m\n"
         exit 1
       fi
     fi
@@ -129,20 +130,20 @@ source_external_scripts() {
     return 0
   fi
 
-  printf "\x1B[2mloading external scripts now ...\x1B[0m\n"
+  echo -ne "\x1B[2mloading external scripts now ...\x1B[0m\n"
 
   for link in "${external_script_links[@]}"; do
-    printf "\x1B[4C\x1B[2mloading ${link} - "
+    echo -ne "\x1B[4C\x1B[2mloading ${link} - "
 
     script_file=$(mktemp -p "${TEMPDIRECTORY}" -t script_XXXXXX.sh 2>/dev/null) || {
-      printf "error\x1B[0m\n"
-      printf "\x1B[38;2;215;0;0mError: failed to create temporary file\x1B[0m\n"
+      echo -ne "error\x1B[0m\n"
+      echo -ne "\x1B[38;2;215;0;0mError: failed to create temporary file\x1B[0m\n"
       exit 1
     }
 
     curl -fsSL "${link}" -o "${script_file}" 2>/dev/null || {
-      printf "error\x1B[0m\n"
-      printf "\x1B[38;2;215;0;0mError: failed to download external script\x1B[0m\n"
+      echo -ne "error\x1B[0m\n"
+      echo -ne "\x1B[38;2;215;0;0mError: failed to download external script\x1B[0m\n"
       exit 1
     }
 
@@ -164,29 +165,29 @@ source_external_scripts() {
       fi
     done
 
-    printf "done\x1B[0m\n"
+    echo -ne "done\x1B[0m\n"
   done
 
   if [[ ${#command_dependency[@]} == 0 ]]; then
     return 0
   fi
 
-  printf "\x1B[2minstalling external command dependencies ...\x1B[0m\n"
+  echo -ne "\x1B[2minstalling external command dependencies ...\x1B[0m\n"
 
   for index in "${!command_dependency[@]}"; do
-    printf "\x1B[4C\x1B[2m${command_dependency[index]} - "
+    echo -ne "\x1B[4C\x1B[2m${command_dependency[index]} - "
 
     if type -t "${command_dependency[index]}" &>/dev/null; then
-      printf "installed\x1B[0m\n"
+      echo -ne "installed\x1B[0m\n"
     else
-      printf "not installed\x1B[0m\n"
-      printf "\x1B[8C\x1B[2m${package_manager} ${package_dependency[index]} ... "
+      echo -ne "not installed\x1B[0m\n"
+      echo -ne "\x1B[8C\x1B[2m${package_manager} ${package_dependency[index]} ... "
 
       if sh -c "${package_manager} ${package_dependency[index]}" &>/dev/null; then
-        printf "done\x1B[0m\n"
+        echo -ne "done\x1B[0m\n"
       else
-        printf "error\x1B[0m\n"
-        printf "\x1B[38;2;215;0;0mError: please run the command manually\x1B[0m\n"
+        echo -ne "error\x1B[0m\n"
+        echo -ne "\x1B[38;2;215;0;0mError: please run the command manually\x1B[0m\n"
         exit 1
       fi
     fi

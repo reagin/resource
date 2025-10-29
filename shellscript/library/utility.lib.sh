@@ -12,8 +12,8 @@
 # -o: pipefail: when any command in the pipeline fails, the entire pipeline returns to a failed state
 set -Eeuo pipefail
 
-export lib_command_dependency=('grep' 'awk' 'md5sum' 'uuidgen')
-export lib_package_dependency=('grep' 'gawk' 'coreutils' 'uuid-runtime')
+export lib_command_dependency=('curl' 'grep' 'awk' 'md5sum' 'uuidgen')
+export lib_package_dependency=('curl' 'grep' 'gawk' 'coreutils' 'uuid-runtime')
 
 readonly sgr_reset="\x1B[0m"
 readonly foreground_color_red="\x1B[38;2;215;0;0m"
@@ -45,7 +45,7 @@ readonly foreground_color_yellow="\x1B[38;2;215;215;95m"
 #   install_content 644 "root:root" "content" "/path/to/destination"
 # -------------------------------------------------------------------
 install_content() {
-  local mode owner group content destination removeflag tempfile
+  local backupfile content destination group mode owner removeflag tempfile junkfolder
 
   mode="${1}"
   owner="${2%%:*}"
@@ -53,27 +53,44 @@ install_content() {
   content="${3}"
   destination="${4}"
   removeflag="${5:-false}"
+  junkfolder="${destination}"
+  backupfile="${destination}.bak"
 
   # Exit if the key parameter is empty
   [[ -n "${mode}" && -n "${owner}" && -n "${group}" && -n "${destination}" ]] || return 1
   # Ensure file permission is in 644 format
   [[ "${mode}" =~ ^[0-7]{3}$ ]] || return 1
-  # Make sure the target path is an absolute path
-  [[ "${destination}" =~ ^\/ ]] || return 1
-  # Make sure the target path is not a directory file
-  [[ -d "${destination}" ]] && return 1
+  # Exit if target file is a folder
+  [[ -e "${destination}" && -d "${destination}" ]] && return 1
+  # Back up the file if it exists
+  [[ -e "${destination}" && -f "${destination}" ]] && {
+    cp "${destination}" "${backupfile}"
+  }
 
-  tempfile=$(mktemp -t tempfile_XXXXXX 2>/dev/null) || return 1
+  while true; do
+    [[ -d "$(dirname "${junkfolder}")" ]] && break
+    junkfolder="$(dirname "${junkfolder}")"
+  done
 
-  printf '%s' "${content}" >"${tempfile}"
+  tempfile=$(mktemp -t tempfile_XXXXXX 2>/dev/null) || {
+    [[ -f "${tempfile}" ]] && rm -rf "${tempfile}"
+    return 1
+  }
+  mkdir -p "$(dirname "${destination}")" 2>/dev/null || {
+    [[ -d "${junkfolder}" ]] && rm -rf "${junkfolder}"
+    return 1
+  }
 
-  install -D --mode="${mode}" --owner="${owner}" --group="${group}" --suffix=".bak" "${tempfile}" "${destination}" 2>/dev/null || {
-    rm -rf "${tempfile}"
+  echo -ne "${content}" >"${tempfile}"
+
+  install -m "${mode}" -o "${owner}" -g "${group}" "${tempfile}" "${destination}" 2>/dev/null || {
+    [[ -d "${junkfolder}" ]] && rm -rf "${junkfolder}"
+    [[ -f "${tempfile}" ]] && rm -rf "${tempfile}"
     return 1
   }
 
   [[ -f "${tempfile}" ]] && rm -rf "${tempfile}"
-  [[ "${removeflag}" == "true" ]] && rm -rf "${destination}.bak"
+  [[ "${removeflag}" == "false" ]] || rm -rf "${backupfile}"
 }
 
 # -------------------------------------------------------------------
@@ -123,16 +140,15 @@ install_content_with_comment() {
 #   remove_content "/path/to/destination"
 # -------------------------------------------------------------------
 remove_content() {
-  local destination
+  local resolved destination
 
   destination="${1}"
+  resolved=$(realpath "${destination}" 2>/dev/null) || return 1
 
   # Make sure the target path is an absolute path
-  [[ -n "${destination}" && "${destination}" =~ ^\/ ]] || return 1
-  # Make sure the path does not contain special fields
-  [[ "$destination" =~ ^(/(\.\.?|)$|(/|^)\.\.(/|$)|(/|^)\.(/|$)) ]] && return 1
+  [[ -n "${destination}" && "${destination}" == "${resolved}" ]] || return 1
 
-  rm -rf "${destination}" 2>/dev/null || return 1
+  rm -rf "${destination}" &>/dev/null || return 1
 }
 
 # -------------------------------------------------------------------
@@ -149,8 +165,8 @@ remove_content() {
 #   remove_content_with_comment "/path/to/destination"
 # -------------------------------------------------------------------
 remove_content_with_comment() {
-  echo -ne "${foreground_color_grey}removing content for ${1} - "
-  if remove_content "$1"; then
+  echo -ne "${foreground_color_grey}removing content for ${1:-} - "
+  if remove_content "${1:-}"; then
     echo -ne "${foreground_color_green}done${sgr_reset}\n"
   else
     echo -ne "${foreground_color_red}error${sgr_reset}\n"
@@ -204,19 +220,19 @@ get_input_message() {
 #   get_input_until_success "enter a number: " '^[0-9]+$' "input must be a number"
 # -------------------------------------------------------------------
 get_input_until_success() {
-  local prompt validate error_msg input_message
+  local prompt validate error_message input_message
 
   prompt="${1:-}"
   validate="${2:-}"
-  error_msg="${3:-}"
+  error_message="${3:-}"
 
   while read -rep "${prompt}" input_message </dev/tty; do
     if [[ -z "${input_message}" ]]; then
-      echo -ne "${foreground_color_grey}input cannot be empty, please try again\n${sgr_reset}" >&2
+      echo -ne "${foreground_color_yellow}input cannot be empty, please try again${sgr_reset}\n" >&2
       continue
     elif [[ -n "${validate}" ]]; then
-      if ! echo "$input_message" | grep -Pq "$validate"; then
-        echo -ne "${foreground_color_yellow}${error_msg}\n${sgr_reset}" >&2
+      if ! echo "$input_message" | grep -Eiq "$validate" &>/dev/null; then
+        echo -ne "${foreground_color_yellow}${error_message}${sgr_reset}\n" >&2
         continue
       fi
     fi
@@ -258,7 +274,7 @@ get_global_ip() {
 #   generate_random_uuid
 # -------------------------------------------------------------------
 generate_random_uuid() {
-  echo -ne "$(uuidgen -r)"
+  echo -ne "$(uuidgen)"
 }
 
 # -------------------------------------------------------------------
@@ -278,8 +294,8 @@ generate_random_uuid() {
 generate_random_password() {
   local random_password
 
-  random_password=$(dd if=/dev/random bs=32 count=1 status=none | tr -d '\0')
-  echo -ne "$random_password" | md5sum | awk '{print $1}'
+  random_password=$(dd if=/dev/random bs=32 count=1 status=none | od -An -tx1 | tr -d ' \n')
+  echo -ne "${random_password}" | md5sum | awk '{print $1}'
 }
 
 # -------------------------------------------------------------------
