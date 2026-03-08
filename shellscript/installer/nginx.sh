@@ -222,7 +222,7 @@ user_name=${user_name}
 user_email=${user_email}
 user_domain=${user_domain}
 user_password=${user_password}
-cloudflare_token=${cloudflare_token}
+dns_cloudflare_api_token=${cloudflare_token}
 EOF
 }
 
@@ -234,7 +234,7 @@ load_global_config() {
     user_email=$(load_ini_config 'user_email' "${global_config_path}")
     user_domain=$(load_ini_config 'user_domain' "${global_config_path}")
     user_password=$(load_ini_config 'user_password' "${global_config_path}")
-    cloudflare_token=$(load_ini_config 'cloudflare_token' "${global_config_path}")
+    cloudflare_token=$(load_ini_config 'dns_cloudflare_api_token' "${global_config_path}")
 
     if [[ -z "${user_name}" || -z "${user_email}" || -z "${user_domain}" || -z "${user_password}" || -z "${cloudflare_token}" ]]; then
       show_error "there is an error in the configuration file, please repair the configuration file: ${global_config_path}\n"
@@ -316,7 +316,7 @@ http {
     log_not_found          off;
     types_hash_max_size    2048;
     types_hash_bucket_size 64;
-    client_max_body_size   16M;
+    client_max_body_size   0;
 
     # MIME
     include                mime.types;
@@ -341,8 +341,44 @@ http {
     # OCSP Stapling
     ssl_stapling           off;
     ssl_stapling_verify    off;
-    resolver               1.1.1.1 1.0.0.1 8.8.8.8 8.8.4.4 valid=60s;
+    resolver               1.1.1.1 8.8.8.8 valid=60s;
     resolver_timeout       2s;
+
+    # Define server location conf map
+    map \$http_upgrade \$connection_upgrade {
+        default upgrade;
+        ''      close;
+    }
+
+    # Define default server below
+    server {
+        listen 80 default_server;
+        listen [::]:80 default_server;
+        server_name _;
+
+        return 301 https://${user_domain}\$request_uri;
+    }
+
+    server {
+        listen 443 ssl http2 default_server;
+        listen [::]:443 ssl http2 default_server;
+        server_name _;
+
+        ssl_certificate     ${certificate_path};
+        ssl_certificate_key ${certificate_key_path};
+
+        # security
+        include             nginxconfig.io/security.conf;
+
+        # logging
+        access_log          /var/log/nginx/access.log combined buffer=512k flush=1m;
+        error_log           /var/log/nginx/error.log warn;
+
+        # additional config
+        include             nginxconfig.io/general.conf;
+
+        return 301 https://${user_domain}\$request_uri;
+    }
 
     # Load configs
     include                /etc/nginx/conf.d/*.conf;
@@ -353,6 +389,14 @@ EOF
 
 generate_domain_conf() {
   cat <<EOF
+# HTTP redirect
+server {
+    listen      80;
+    listen      [::]:80;
+    server_name ${user_domain};
+    return      301 https://${user_domain}\$request_uri;
+}
+
 server {
     listen              443 ssl http2;
     listen              [::]:443 ssl http2;
@@ -363,26 +407,8 @@ server {
     ssl_certificate     ${certificate_path};
     ssl_certificate_key ${certificate_key_path};
 
-    # security
-    include             nginxconfig.io/security.conf;
-
-    # logging
-    access_log          /var/log/nginx/access.log combined buffer=512k flush=1m;
-    error_log           /var/log/nginx/error.log warn;
-
-    # additional config
-    include             nginxconfig.io/general.conf;
-
     # additional location config
     include             /etc/nginx/conf.d/${user_domain}/*.conf;
-}
-
-# HTTP redirect
-server {
-    listen      80;
-    listen      [::]:80;
-    server_name ${user_domain};
-    return      301 https://${user_domain}\$request_uri;
 }
 EOF
 }
@@ -393,8 +419,8 @@ generate_security_conf() {
 add_header X-XSS-Protection          "1; mode=block" always;
 add_header X-Content-Type-Options    "nosniff" always;
 add_header Referrer-Policy           "strict-origin-when-cross-origin" always;
-add_header Content-Security-Policy   "default-src 'self' http: https: ws: wss: data: blob: 'unsafe-inline'; frame-ancestors 'self';" always;
 add_header Permissions-Policy        "interest-cohort=()" always;
+add_header Content-Security-Policy   "default-src 'self' http: https: ws: wss: data: blob: 'unsafe-inline'; frame-ancestors 'self';" always;
 add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
 
 # . files
@@ -433,12 +459,6 @@ gzip_vary       on;
 gzip_proxied    any;
 gzip_comp_level 6;
 gzip_types      text/plain text/css text/xml application/json application/javascript application/rss+xml application/atom+xml image/svg+xml;
-EOF
-}
-
-generate_nginxconfig_href() {
-  cat <<EOF
-https://www.digitalocean.com/community/tools/nginx?domains.0.server.redirectSubdomains=false&domains.0.https.certType=custom&domains.0.https.sslCertificate=%2Fetc%2Fletsencrypt%2Flive%2Fexample.com%2Ffullchain.pem&domains.0.https.sslCertificateKey=%2Fetc%2Fletsencrypt%2Flive%2Fexample.com%2Fprivkey.pem&domains.0.php.php=false&domains.0.routing.index=index.html&domains.0.routing.fallbackPhp=false&global.https.ocspOpenDns=false&global.security.referrerPolicy=strict-origin-when-cross-origin&global.nginx.user=nginx&global.app.lang=zhCN
 EOF
 }
 
@@ -593,7 +613,6 @@ debian_modify_nginx_default() {
   install_content_with_comment 644 "root:root" "$(generate_domain_conf)" "/etc/nginx/sites-available/${user_domain}.conf" true
   install_content_with_comment 644 "root:root" "$(generate_security_conf)" "/etc/nginx/nginxconfig.io/security.conf" true
   install_content_with_comment 644 "root:root" "$(generate_general_conf)" "/etc/nginx/nginxconfig.io/general.conf" true
-  install_content_with_comment 644 "root:root" "$(generate_nginxconfig_href)" "/etc/nginx/nginxconfig.txt" true
   install_content_with_comment 644 "root:root" "$(generate_index_html)" "/var/www/${user_domain}/public/index.html" true
 
   show_info "creating directory /etc/nginx/conf.d/${user_domain}\n"
