@@ -73,7 +73,7 @@ proxies:
     port: 10080
     password: <<user_password>>
     tls: false
-    sni: ""
+    sni: ''
     network: tcp
     tfo: false
     skip-cert-verify: false
@@ -95,6 +95,14 @@ proxy-groups:
       - ⚡️ 自动选择
       - 🗽 California Trojan
       - 🗽 California Hysteria
+  - name: ⚡️ 自动选择
+    type: url-test
+    proxies:
+      - 🗽 California Trojan
+      - 🗽 California Hysteria
+    url: https://www.gstatic.com/generate_204
+    interval: 300
+    lazy: false
   - type: select
     name: 🏠 私有网络
     proxies:
@@ -127,14 +135,6 @@ proxy-groups:
       - ✨ 节点选择
       - 🗽 California Trojan
       - 🗽 California Hysteria
-  - name: ⚡️ 自动选择
-    type: url-test
-    proxies:
-      - 🗽 California Trojan
-      - 🗽 California Hysteria
-    url: https://www.gstatic.com/generate_204
-    interval: 300
-    lazy: false
 rules:
   - RULE-SET,cn,🔒 国内服务
   - RULE-SET,geolocation-cn,🔒 国内服务
