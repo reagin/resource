@@ -87,8 +87,8 @@ check_environment() {
 check_dependencies() {
   local command_dependency package_dependency
 
-  command_dependency=('curl' 'openssl' 'sed' 'grep' 'awk' 'mktemp' 'systemctl' 'adduser')
-  package_dependency=('curl' 'openssl' 'sed' 'grep' 'gawk' 'coreutils' 'systemd' 'passwd')
+  command_dependency=('curl' 'openssl' 'sed' 'grep' 'logrotate' 'awk' 'mktemp' 'systemctl' 'adduser')
+  package_dependency=('curl' 'openssl' 'sed' 'grep' 'logrotate' 'gawk' 'coreutils' 'systemd' 'passwd')
 
   if [[ ${#command_dependency[@]} == 0 ]]; then
     return 0
@@ -360,9 +360,11 @@ http {
     }
 
     server {
-        listen 443 ssl http2 default_server;
-        listen [::]:443 ssl http2 default_server;
+        listen 443 ssl default_server;
+        listen [::]:443 ssl default_server;
         server_name _;
+
+        http2 on;
 
         ssl_certificate     ${certificate_path};
         ssl_certificate_key ${certificate_key_path};
@@ -398,10 +400,12 @@ server {
 }
 
 server {
-    listen              443 ssl http2;
-    listen              [::]:443 ssl http2;
+    listen              443 ssl;
+    listen              [::]:443 ssl;
     server_name         ${user_domain};
     root                /var/www/${user_domain}/public;
+
+    http2 on;
 
     # SSL
     ssl_certificate     ${certificate_path};
