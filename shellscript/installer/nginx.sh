@@ -606,8 +606,8 @@ debian_modify_nginx_default() {
 
   if [[ -f /etc/logrotate.d/nginx ]]; then
     sed -Ei 's/www-data/nginx/g' /etc/logrotate.d/nginx
+    systemctl daemon-reload && systemctl restart logrotate.service
   fi
-  systemctl daemon-reload && systemctl restart logrotate.service
 
   install_content_with_comment 644 "root:root" "$(generate_nginx_conf)" "/etc/nginx/nginx.conf" true
   install_content_with_comment 644 "root:root" "$(generate_domain_conf)" "/etc/nginx/sites-available/${user_domain}.conf" true
