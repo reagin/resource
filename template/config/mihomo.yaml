@@ -73,7 +73,7 @@ proxies:
     port: 10080
     password: <<user_password>>
     tls: false
-    sni: ''
+    sni: <<user_domain>>
     network: tcp
     tfo: false
     skip-cert-verify: false
