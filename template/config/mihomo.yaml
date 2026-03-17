@@ -13,6 +13,13 @@ geox-url:
   geoip: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geoip.dat
   geosite: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geosite.dat
 rule-providers:
+  category-ads-all:
+    type: http
+    format: mrs
+    behavior: domain
+    url: https://gh-proxy.com/https://github.com/MetaCubeX/meta-rules-dat/raw/refs/heads/meta/geo/geosite/category-ads-all.mrs
+    path: ./ruleset/category-ads-all.mrs
+    interval: 86400
   cn:
     type: http
     format: mrs
@@ -34,6 +41,27 @@ rule-providers:
     url: https://gh-proxy.com/https://github.com/MetaCubeX/meta-rules-dat/raw/refs/heads/meta/geo/geosite/geolocation-!cn.mrs
     path: ./ruleset/geolocation-!cn.mrs
     interval: 86400
+  google:
+    type: http
+    format: mrs
+    behavior: domain
+    url: https://gh-proxy.com/https://github.com/MetaCubeX/meta-rules-dat/raw/refs/heads/meta/geo/geosite/google.mrs
+    path: ./ruleset/google.mrs
+    interval: 86400
+  youtube:
+    type: http
+    format: mrs
+    behavior: domain
+    url: https://gh-proxy.com/https://github.com/MetaCubeX/meta-rules-dat/raw/refs/heads/meta/geo/geosite/youtube.mrs
+    path: ./ruleset/youtube.mrs
+    interval: 86400
+  bilibili:
+    type: http
+    format: mrs
+    behavior: domain
+    url: https://gh-proxy.com/https://github.com/MetaCubeX/meta-rules-dat/raw/refs/heads/meta/geo/geosite/bilibili.mrs
+    path: ./ruleset/bilibili.mrs
+    interval: 86400
   cn-ip:
     type: http
     format: mrs
@@ -47,6 +75,20 @@ rule-providers:
     behavior: ipcidr
     url: https://gh-proxy.com/https://github.com/MetaCubeX/meta-rules-dat/raw/refs/heads/meta/geo/geoip/private.mrs
     path: ./ruleset/private-ip.mrs
+    interval: 86400
+  google-ip:
+    type: http
+    format: mrs
+    behavior: ipcidr
+    url: https://gh-proxy.com/https://github.com/MetaCubeX/meta-rules-dat/raw/refs/heads/meta/geo/geoip/google.mrs
+    path: ./ruleset/google-ip.mrs
+    interval: 86400
+  telegram-ip:
+    type: http
+    format: mrs
+    behavior: ipcidr
+    url: https://gh-proxy.com/https://github.com/MetaCubeX/meta-rules-dat/raw/refs/heads/meta/geo/geoip/telegram.mrs
+    path: ./ruleset/telegram-ip.mrs
     interval: 86400
 dns:
   enable: true
@@ -87,14 +129,6 @@ proxies:
     sni: <<user_domain>>
     skip-cert-verify: false
 proxy-groups:
-  - type: select
-    name: ✨ 节点选择
-    proxies:
-      - DIRECT
-      - REJECT
-      - ⚡️ 自动选择
-      - 🗽 California Trojan
-      - 🗽 California Hysteria
   - name: ⚡️ 自动选择
     type: url-test
     proxies:
@@ -104,15 +138,23 @@ proxy-groups:
     interval: 300
     lazy: false
   - type: select
-    name: 🏠 私有网络
+    name: ✨ 节点选择
     proxies:
       - DIRECT
       - REJECT
-      - ✨ 节点选择
+      - ⚡️ 自动选择
       - 🗽 California Trojan
       - 🗽 California Hysteria
   - type: select
-    name: 🔒 国内服务
+    name: 💨 广告拦截
+    proxies:
+      - DIRECT
+      - REJECT
+      - ⚡️ 自动选择
+      - 🗽 California Trojan
+      - 🗽 California Hysteria
+  - type: select
+    name: 🏠 国内服务
     proxies:
       - DIRECT
       - REJECT
@@ -136,9 +178,15 @@ proxy-groups:
       - 🗽 California Trojan
       - 🗽 California Hysteria
 rules:
-  - RULE-SET,cn,🔒 国内服务
-  - RULE-SET,geolocation-cn,🔒 国内服务
+  - RULE-SET,category-ads-all,💨 广告拦截
+  - RULE-SET,google,🚀 全球服务
+  - RULE-SET,youtube,🚀 全球服务
   - RULE-SET,geolocation-!cn,🚀 全球服务
-  - RULE-SET,private-ip,🏠 私有网络,no-resolve
-  - RULE-SET,cn-ip,🔒 国内服务,no-resolve
+  - RULE-SET,cn,🏠 国内服务
+  - RULE-SET,bilibili,🏠 国内服务
+  - RULE-SET,geolocation-cn,🏠 国内服务
+  - RULE-SET,google-ip,🚀 全球服务,no-resolve
+  - RULE-SET,telegram-ip,🚀 全球服务,no-resolve
+  - RULE-SET,private-ip,🏠 国内服务,no-resolve
+  - RULE-SET,cn-ip,🏠 国内服务,no-resolve
   - MATCH,🐟 漏网之鱼
