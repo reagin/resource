@@ -107,6 +107,13 @@ rule-providers:
     url: https://gh-proxy.com/https://github.com/MetaCubeX/meta-rules-dat/raw/refs/heads/meta/geo/geosite/category-ads-all.mrs
     path: ./ruleset/category-ads-all.mrs
     interval: 86400
+  category-ai-!cn:
+    type: http
+    format: mrs
+    behavior: domain
+    url: https://gh-proxy.com/https://github.com/MetaCubeX/meta-rules-dat/raw/refs/heads/meta/geo/geosite/category-ai-!cn.mrs
+    path: ./ruleset/category-ai-!cn.mrs
+    interval: 86400
   cn:
     type: http
     format: mrs
@@ -128,6 +135,27 @@ rule-providers:
     url: https://gh-proxy.com/https://github.com/MetaCubeX/meta-rules-dat/raw/refs/heads/meta/geo/geosite/geolocation-!cn.mrs
     path: ./ruleset/geolocation-!cn.mrs
     interval: 86400
+  github:
+    type: http
+    format: mrs
+    behavior: domain
+    url: https://gh-proxy.com/https://github.com/MetaCubeX/meta-rules-dat/raw/refs/heads/meta/geo/geosite/github.mrs
+    path: ./ruleset/github.mrs
+    interval: 86400
+  gitlab:
+    type: http
+    format: mrs
+    behavior: domain
+    url: https://gh-proxy.com/https://github.com/MetaCubeX/meta-rules-dat/raw/refs/heads/meta/geo/geosite/gitlab.mrs
+    path: ./ruleset/gitlab.mrs
+    interval: 86400
+  apple:
+    type: http
+    format: mrs
+    behavior: domain
+    url: https://gh-proxy.com/https://github.com/MetaCubeX/meta-rules-dat/raw/refs/heads/meta/geo/geosite/apple.mrs
+    path: ./ruleset/apple.mrs
+    interval: 86400
   google:
     type: http
     format: mrs
@@ -135,12 +163,26 @@ rule-providers:
     url: https://gh-proxy.com/https://github.com/MetaCubeX/meta-rules-dat/raw/refs/heads/meta/geo/geosite/google.mrs
     path: ./ruleset/google.mrs
     interval: 86400
+  microsoft:
+    type: http
+    format: mrs
+    behavior: domain
+    url: https://gh-proxy.com/https://github.com/MetaCubeX/meta-rules-dat/raw/refs/heads/meta/geo/geosite/microsoft.mrs
+    path: ./ruleset/microsoft.mrs
+    interval: 86400
   youtube:
     type: http
     format: mrs
     behavior: domain
     url: https://gh-proxy.com/https://github.com/MetaCubeX/meta-rules-dat/raw/refs/heads/meta/geo/geosite/youtube.mrs
     path: ./ruleset/youtube.mrs
+    interval: 86400
+  steam:
+    type: http
+    format: mrs
+    behavior: domain
+    url: https://gh-proxy.com/https://github.com/MetaCubeX/meta-rules-dat/raw/refs/heads/meta/geo/geosite/steam.mrs
+    path: ./ruleset/steam.mrs
     interval: 86400
   bilibili:
     type: http
@@ -179,8 +221,14 @@ rule-providers:
     interval: 86400
 rules:
   - RULE-SET,category-ads-all,💨 广告拦截
+  - RULE-SET,category-ai-!cn,🚀 全球服务
+  - RULE-SET,apple,🚀 全球服务
+  - RULE-SET,github,🚀 全球服务
+  - RULE-SET,gitlab,🚀 全球服务
+  - RULE-SET,microsoft,🚀 全球服务
   - RULE-SET,google,🚀 全球服务
   - RULE-SET,youtube,🚀 全球服务
+  - RULE-SET,steam,🚀 全球服务
   - RULE-SET,geolocation-!cn,🚀 全球服务
   - RULE-SET,cn,🏠 国内服务
   - RULE-SET,bilibili,🏠 国内服务
