@@ -1,8 +1,14 @@
 port: 7890
 socks-port: 7891
+redir-port: 7892
+mixed-port: 7893
+tproxy-port: 7895
 allow-lan: false
 mode: rule
 log-level: info
+ipv6: false
+tcp-concurrent: true
+unified-delay: true
 geodata-mode: true
 geodata-loader: standard
 geo-auto-update: true
@@ -12,11 +18,24 @@ geox-url:
   mmdb: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/country.mmdb
   geoip: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geoip.dat
   geosite: https://testingcf.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geosite.dat
+tun:
+  enable: true
+  stack: gvisor
+  device: utun
+  dns-hijack:
+    - 127.0.0.1:53
+  endpoint-independent-nat: true
+  auto-route: true
+  auto-detect-interface: true
+  auto-redirect: true
+  strict-route: false
+  disable-icmp-forwarding: false
 dns:
   enable: true
-  ipv6: true
+  ipv6: false
+  listen: 0.0.0.0:7874
   respect-rules: true
-  enhanced-mode: fake-ip
+  enhanced-mode: redir-host
   nameserver:
     - https://223.5.5.5/dns-query
     - https://120.53.53.53/dns-query
@@ -30,6 +49,38 @@ dns:
     geosite:geolocation-!cn:
       - https://dns.google/dns-query
       - https://dns.cloudflare.com/dns-query
+  default-nameserver:
+    - https://223.5.5.5/dns-query
+    - https://120.53.53.53/dns-query
+sniffer:
+  enable: true
+  override-destination: true
+  sniff:
+    QUIC:
+      ports:
+        - 443
+    TLS:
+      ports:
+        - 443
+        - 8443
+    HTTP:
+      ports:
+        - 80
+        - 8080-8880
+      override-destination: true
+  force-domain:
+    - "+.netflix.com"
+    - "+.nflxvideo.net"
+    - "+.amazonaws.com"
+    - "+.media.dssott.com"
+  skip-domain:
+    - "+.oray.com"
+    - "+.sunlogin.net"
+    - "+.push.apple.com"
+  force-dns-mapping: true
+  parse-pure-ip: true
+experimental:
+  quic-go-disable-gso: true
 proxies:
   - name: 🗽 California Trojan
     type: trojan
@@ -100,141 +151,205 @@ proxy-groups:
       - 🗽 California Trojan
       - 🗽 California Hysteria2
 rule-providers:
-  category-ads-all:
+  adrules:
     type: http
-    format: mrs
-    behavior: domain
-    url: https://gh-proxy.com/https://github.com/MetaCubeX/meta-rules-dat/raw/refs/heads/meta/geo/geosite/category-ads-all.mrs
-    path: ./ruleset/category-ads-all.mrs
+    url: https://gh-proxy.com/https://github.com/QuixoticHeart/rule-set/raw/refs/heads/ruleset/meta/adrules.list
+    path: ./rule_provider/adrules.list
     interval: 86400
-  category-ai-!cn:
+    behavior: classical
+    format: text
+  httpdns:
     type: http
-    format: mrs
-    behavior: domain
-    url: https://gh-proxy.com/https://github.com/MetaCubeX/meta-rules-dat/raw/refs/heads/meta/geo/geosite/category-ai-!cn.mrs
-    path: ./ruleset/category-ai-!cn.mrs
+    url: https://gh-proxy.com/https://github.com/QuixoticHeart/rule-set/raw/refs/heads/ruleset/meta/httpdns.list
+    path: ./rule_provider/httpdns.list
     interval: 86400
-  cn:
+    behavior: classical
+    format: text
+  ai:
     type: http
-    format: mrs
-    behavior: domain
-    url: https://gh-proxy.com/https://github.com/MetaCubeX/meta-rules-dat/raw/refs/heads/meta/geo/geosite/cn.mrs
-    path: ./ruleset/cn.mrs
+    url: https://gh-proxy.com/https://github.com/QuixoticHeart/rule-set/raw/refs/heads/ruleset/meta/ai.list
+    path: ./rule_provider/ai.list
     interval: 86400
-  geolocation-cn:
+    behavior: classical
+    format: text
+  gits:
     type: http
-    format: mrs
-    behavior: domain
-    url: https://gh-proxy.com/https://github.com/MetaCubeX/meta-rules-dat/raw/refs/heads/meta/geo/geosite/geolocation-cn.mrs
-    path: ./ruleset/geolocation-cn.mrs
+    url: https://gh-proxy.com/https://github.com/QuixoticHeart/rule-set/raw/refs/heads/ruleset/meta/gits.list
+    path: ./rule_provider/gits.list
     interval: 86400
-  geolocation-!cn:
+    behavior: classical
+    format: text
+  crypto:
     type: http
-    format: mrs
-    behavior: domain
-    url: https://gh-proxy.com/https://github.com/MetaCubeX/meta-rules-dat/raw/refs/heads/meta/geo/geosite/geolocation-!cn.mrs
-    path: ./ruleset/geolocation-!cn.mrs
+    url: https://gh-proxy.com/https://github.com/QuixoticHeart/rule-set/raw/refs/heads/ruleset/meta/crypto.list
+    path: ./rule_provider/crypto.list
     interval: 86400
-  github:
+    behavior: classical
+    format: text
+  tiktok:
     type: http
-    format: mrs
-    behavior: domain
-    url: https://gh-proxy.com/https://github.com/MetaCubeX/meta-rules-dat/raw/refs/heads/meta/geo/geosite/github.mrs
-    path: ./ruleset/github.mrs
+    url: https://gh-proxy.com/https://github.com/QuixoticHeart/rule-set/raw/refs/heads/ruleset/meta/tiktok.list
+    path: ./rule_provider/tiktok.list
     interval: 86400
-  gitlab:
+    behavior: classical
+    format: text
+  disney:
     type: http
-    format: mrs
-    behavior: domain
-    url: https://gh-proxy.com/https://github.com/MetaCubeX/meta-rules-dat/raw/refs/heads/meta/geo/geosite/gitlab.mrs
-    path: ./ruleset/gitlab.mrs
+    url: https://gh-proxy.com/https://github.com/QuixoticHeart/rule-set/raw/refs/heads/ruleset/meta/disney.list
+    path: ./rule_provider/disney.list
     interval: 86400
-  apple:
+    behavior: classical
+    format: text
+  netflix:
     type: http
-    format: mrs
-    behavior: domain
-    url: https://gh-proxy.com/https://github.com/MetaCubeX/meta-rules-dat/raw/refs/heads/meta/geo/geosite/apple.mrs
-    path: ./ruleset/apple.mrs
+    url: https://gh-proxy.com/https://github.com/QuixoticHeart/rule-set/raw/refs/heads/ruleset/meta/netflix.list
+    path: ./rule_provider/netflix.list
     interval: 86400
-  google:
-    type: http
-    format: mrs
-    behavior: domain
-    url: https://gh-proxy.com/https://github.com/MetaCubeX/meta-rules-dat/raw/refs/heads/meta/geo/geosite/google.mrs
-    path: ./ruleset/google.mrs
-    interval: 86400
-  microsoft:
-    type: http
-    format: mrs
-    behavior: domain
-    url: https://gh-proxy.com/https://github.com/MetaCubeX/meta-rules-dat/raw/refs/heads/meta/geo/geosite/microsoft.mrs
-    path: ./ruleset/microsoft.mrs
-    interval: 86400
+    behavior: classical
+    format: text
   youtube:
     type: http
-    format: mrs
-    behavior: domain
-    url: https://gh-proxy.com/https://github.com/MetaCubeX/meta-rules-dat/raw/refs/heads/meta/geo/geosite/youtube.mrs
-    path: ./ruleset/youtube.mrs
+    url: https://gh-proxy.com/https://github.com/QuixoticHeart/rule-set/raw/refs/heads/ruleset/meta/youtube.list
+    path: ./rule_provider/youtube.list
     interval: 86400
-  steam:
+    behavior: classical
+    format: text
+  apple:
     type: http
-    format: mrs
-    behavior: domain
-    url: https://gh-proxy.com/https://github.com/MetaCubeX/meta-rules-dat/raw/refs/heads/meta/geo/geosite/steam.mrs
-    path: ./ruleset/steam.mrs
+    url: https://gh-proxy.com/https://github.com/QuixoticHeart/rule-set/raw/refs/heads/ruleset/meta/apple.list
+    path: ./rule_provider/apple.list
     interval: 86400
+    behavior: classical
+    format: text
+  google:
+    type: http
+    url: https://gh-proxy.com/https://github.com/QuixoticHeart/rule-set/raw/refs/heads/ruleset/meta/google.list
+    path: ./rule_provider/google.list
+    interval: 86400
+    behavior: classical
+    format: text
+  googlefcm:
+    type: http
+    url: https://gh-proxy.com/https://github.com/QuixoticHeart/rule-set/raw/refs/heads/ruleset/meta/googlefcm.list
+    path: ./rule_provider/googlefcm.list
+    interval: 86400
+    behavior: classical
+    format: text
+  onedrive:
+    type: http
+    url: https://gh-proxy.com/https://github.com/QuixoticHeart/rule-set/raw/refs/heads/ruleset/meta/onedrive.list
+    path: ./rule_provider/onedrive.list
+    interval: 86400
+    behavior: classical
+    format: text
+  microsoft:
+    type: http
+    url: https://gh-proxy.com/https://github.com/QuixoticHeart/rule-set/raw/refs/heads/ruleset/meta/microsoft.list
+    path: ./rule_provider/microsoft.list
+    interval: 86400
+    behavior: classical
+    format: text
+  gfw:
+    type: http
+    url: https://gh-proxy.com/https://github.com/QuixoticHeart/rule-set/raw/refs/heads/ruleset/meta/gfw.list
+    path: ./rule_provider/gfw.list
+    interval: 86400
+    behavior: classical
+    format: text
+  proxy:
+    type: http
+    url: https://gh-proxy.com/https://github.com/QuixoticHeart/rule-set/raw/refs/heads/ruleset/meta/proxy.list
+    path: ./rule_provider/proxy.list
+    interval: 86400
+    behavior: classical
+    format: text
+  tld-proxy:
+    type: http
+    url: https://gh-proxy.com/https://github.com/QuixoticHeart/rule-set/raw/refs/heads/ruleset/meta/tld-proxy.list
+    path: ./rule_provider/tld-proxy.list
+    interval: 86400
+    behavior: classical
+    format: text
+  socialmedia:
+    type: http
+    url: https://gh-proxy.com/https://github.com/QuixoticHeart/rule-set/raw/refs/heads/ruleset/meta/socialmedia.list
+    path: ./rule_provider/socialmedia.list
+    interval: 86400
+    behavior: classical
+    format: text
+  cn:
+    type: http
+    url: https://gh-proxy.com/https://github.com/QuixoticHeart/rule-set/raw/refs/heads/ruleset/meta/cn.list
+    path: ./rule_provider/cn.list
+    interval: 86400
+    behavior: classical
+    format: text
+  dmca:
+    type: http
+    url: https://gh-proxy.com/https://github.com/QuixoticHeart/rule-set/raw/refs/heads/ruleset/meta/dmca.list
+    path: ./rule_provider/dmca.list
+    interval: 86400
+    behavior: classical
+    format: text
+  cncidr:
+    type: http
+    url: https://gh-proxy.com/https://github.com/QuixoticHeart/rule-set/raw/refs/heads/ruleset/meta/cncidr.list
+    path: ./rule_provider/cncidr.list
+    interval: 86400
+    behavior: classical
+    format: text
+  douyin:
+    type: http
+    url: https://gh-proxy.com/https://github.com/QuixoticHeart/rule-set/raw/refs/heads/ruleset/meta/douyin.list
+    path: ./rule_provider/douyin.list
+    interval: 86400
+    behavior: classical
+    format: text
+  private:
+    type: http
+    url: https://gh-proxy.com/https://github.com/QuixoticHeart/rule-set/raw/refs/heads/ruleset/meta/private.list
+    path: ./rule_provider/private.list
+    interval: 86400
+    behavior: classical
+    format: text
   bilibili:
     type: http
-    format: mrs
-    behavior: domain
-    url: https://gh-proxy.com/https://github.com/MetaCubeX/meta-rules-dat/raw/refs/heads/meta/geo/geosite/bilibili.mrs
-    path: ./ruleset/bilibili.mrs
+    url: https://gh-proxy.com/https://github.com/QuixoticHeart/rule-set/raw/refs/heads/ruleset/meta/bilibili.list
+    path: ./rule_provider/bilibili.list
     interval: 86400
-  cn-ip:
+    behavior: classical
+    format: text
+  socialmedia-cn:
     type: http
-    format: mrs
-    behavior: ipcidr
-    url: https://gh-proxy.com/https://github.com/MetaCubeX/meta-rules-dat/raw/refs/heads/meta/geo/geoip/cn.mrs
-    path: ./ruleset/cn-ip.mrs
+    url: https://gh-proxy.com/https://github.com/QuixoticHeart/rule-set/raw/refs/heads/ruleset/meta/socialmedia-cn.list
+    path: ./rule_provider/socialmedia-cn.list
     interval: 86400
-  private-ip:
-    type: http
-    format: mrs
-    behavior: ipcidr
-    url: https://gh-proxy.com/https://github.com/MetaCubeX/meta-rules-dat/raw/refs/heads/meta/geo/geoip/private.mrs
-    path: ./ruleset/private-ip.mrs
-    interval: 86400
-  google-ip:
-    type: http
-    format: mrs
-    behavior: ipcidr
-    url: https://gh-proxy.com/https://github.com/MetaCubeX/meta-rules-dat/raw/refs/heads/meta/geo/geoip/google.mrs
-    path: ./ruleset/google-ip.mrs
-    interval: 86400
-  telegram-ip:
-    type: http
-    format: mrs
-    behavior: ipcidr
-    url: https://gh-proxy.com/https://github.com/MetaCubeX/meta-rules-dat/raw/refs/heads/meta/geo/geoip/telegram.mrs
-    path: ./ruleset/telegram-ip.mrs
-    interval: 86400
+    behavior: classical
+    format: text
 rules:
-  - RULE-SET,category-ads-all,💨 广告拦截
-  - RULE-SET,category-ai-!cn,🚀 全球服务
-  - RULE-SET,apple,🚀 全球服务
-  - RULE-SET,github,🚀 全球服务
-  - RULE-SET,gitlab,🚀 全球服务
-  - RULE-SET,microsoft,🚀 全球服务
-  - RULE-SET,google,🚀 全球服务
+  - RULE-SET,adrules,💨 广告拦截
+  - RULE-SET,httpdns,💨 广告拦截
+  - RULE-SET,ai,🚀 全球服务
+  - RULE-SET,gits,🚀 全球服务
+  - RULE-SET,crypto,🚀 全球服务
+  - RULE-SET,tiktok,🚀 全球服务
+  - RULE-SET,disney,🚀 全球服务
+  - RULE-SET,netflix,🚀 全球服务
   - RULE-SET,youtube,🚀 全球服务
-  - RULE-SET,steam,🚀 全球服务
-  - RULE-SET,geolocation-!cn,🚀 全球服务
+  - RULE-SET,apple,🚀 全球服务
+  - RULE-SET,google,🚀 全球服务
+  - RULE-SET,googlefcm,🚀 全球服务
+  - RULE-SET,onedrive,🚀 全球服务
+  - RULE-SET,microsoft,🚀 全球服务
+  - RULE-SET,gfw,🚀 全球服务
+  - RULE-SET,proxy,🚀 全球服务
+  - RULE-SET,tld-proxy,🚀 全球服务
+  - RULE-SET,socialmedia,🚀 全球服务
   - RULE-SET,cn,🏠 国内服务
+  - RULE-SET,dmca,🏠 国内服务
+  - RULE-SET,cncidr,🏠 国内服务
+  - RULE-SET,douyin,🏠 国内服务
+  - RULE-SET,private,🏠 国内服务
   - RULE-SET,bilibili,🏠 国内服务
-  - RULE-SET,geolocation-cn,🏠 国内服务
-  - RULE-SET,google-ip,🚀 全球服务,no-resolve
-  - RULE-SET,telegram-ip,🚀 全球服务,no-resolve
-  - RULE-SET,private-ip,🏠 国内服务,no-resolve
-  - RULE-SET,cn-ip,🏠 国内服务,no-resolve
+  - RULE-SET,socialmedia-cn,🏠 国内服务
   - MATCH,🐟 漏网之鱼
