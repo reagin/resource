@@ -205,8 +205,7 @@ source_external_scripts
 
 generate_authorized_keys() {
   cat <<EOF
-ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJNL34NimGRUGyDHuuWuCo+L9i/nWjq9TaJOp92PkDnB reagin's work key for universal usage
-ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDcfK/7nowd2sE5DAAePkIha/AsLdprX9cX0YPGKJV0D reagin's personal key for universal usage
+ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAaMdAO2khj6esWPJk9CI9s/xBE82SmwbgHgfHgEiPUX reagin's personal key for universal usage
 EOF
 }
 
