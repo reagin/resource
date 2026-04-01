@@ -276,7 +276,7 @@ debian_custom_initialize() {
   sed -Ei 's/^#?(clientalivecountmax).*/\1 3/Ig' /etc/ssh/sshd_config
 
   # restart the ssh service
-  systemctl daemon-reload && systemctl restart sshd.service
+  systemctl daemon-reload && systemctl restart sshd.service || true
 
   # clean junk files in root path
   rm -rf /*.usr-is-merged

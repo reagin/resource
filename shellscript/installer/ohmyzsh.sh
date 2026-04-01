@@ -43,25 +43,25 @@ check_environment() {
     arch)
       os_arch=$(uname -m)
       package_suffix=".pkg.tar.zst"
-      package_manager="pacman -S --noconfirm"
+      package_manager="sudo pacman -S --noconfirm"
       package_installer="pacman -U --noconfirm"
       ;;
     openwrt)
       os_arch=$(uname -m)
       package_suffix=".ipk"
-      package_manager="opkg install"
+      package_manager="sudo opkg install"
       package_installer="opkg install"
       ;;
     ubuntu | debian)
       os_arch=$(dpkg --print-architecture)
       package_suffix=".deb"
-      package_manager="apt install -y"
+      package_manager="sudo apt install -y"
       package_installer="dpkg -i"
       ;;
     red | centos | fedora)
       os_arch=$(uname -m)
       package_suffix=".rpm"
-      package_manager="dnf install -y"
+      package_manager="sudo dnf install -y"
       package_installer="rpm -i"
       ;;
     *)
@@ -77,8 +77,8 @@ check_environment() {
 check_dependencies() {
   local command_dependency package_dependency
 
-  command_dependency=(awk curl mktemp runuser)
-  package_dependency=(gawk curl coreutils util-linux)
+  command_dependency=(awk curl mktemp)
+  package_dependency=(gawk curl coreutils)
 
   if [[ ${#command_dependency[@]} == 0 ]]; then
     return 0
