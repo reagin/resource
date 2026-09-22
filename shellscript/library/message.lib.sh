@@ -4,40 +4,39 @@
 # author: reagin
 # github: https://github.com/reagin/resource
 # description: format output information
+#
+# this file is meant to be sourced by bootstrap.lib.sh; it does not set
+# shell options itself and is the single place where sgr / color
+# variables are defined
+#
+# the variables below are consumed by other libraries and entry scripts
+# shellcheck disable=SC2034
 
-# enable the following shell options:
-# -E: ensure that err trap is also valid in function, subshell, and command replacements
-# -e: when any command exits in a non-zero state, exit the script immediately
-# -u: when using undefined variables, the script will report an error and exit
-# -o pipefail: when any command in the pipeline fails, the entire pipeline returns to a failed state
-set -Eeuo pipefail
-
-export lib_command_dependency=('sed' 'tput')
-export lib_package_dependency=('sed' 'ncurses-bin')
+lib_dependencies=('sed:sed' 'tput:ncurses-bin')
 
 # Define cursor variables
-export sgr_reset="\x1B[0m"
-export sgr_bold="\x1B[1m"
-export sgr_faint="\x1B[2m"
-export sgr_italic="\x1B[3m"
-export sgr_underline="\x1B[4m"
-export sgr_invert="\x1B[7m"
-export sgr_strike="\x1B[9m"
+sgr_reset="\x1B[0m"
+sgr_bold="\x1B[1m"
+sgr_faint="\x1B[2m"
+sgr_italic="\x1B[3m"
+sgr_underline="\x1B[4m"
+sgr_invert="\x1B[7m"
+sgr_strike="\x1B[9m"
 # Define color variables
-export foreground_color_black="\x1B[38;2;0;0;0m"
-export foreground_color_blue="\x1B[38;2;0;135;215m"
-export foreground_color_green="\x1B[38;2;0;175;0m"
-export foreground_color_grey="\x1B[38;2;128;128;128m"
-export foreground_color_purple="\x1B[38;2;175;175;255m"
-export foreground_color_red="\x1B[38;2;215;0;0m"
-export foreground_color_yellow="\x1B[38;2;215;215;95m"
-export background_color_balck="\x1B[48;2;0;0;0m"
-export background_color_blue="\x1B[48;2;0;120;200m"
-export background_color_green="\x1B[48;2;0;160;0m"
-export background_color_grey="\x1B[48;2;120;120;120m"
-export background_color_purple="\x1B[48;2;160;160;220m"
-export background_color_red="\x1B[48;2;200;0;0m"
-export background_color_yellow="\x1B[48;2;200;200;90m"
+foreground_color_black="\x1B[38;2;0;0;0m"
+foreground_color_blue="\x1B[38;2;0;135;215m"
+foreground_color_green="\x1B[38;2;0;175;0m"
+foreground_color_grey="\x1B[38;2;128;128;128m"
+foreground_color_purple="\x1B[38;2;175;175;255m"
+foreground_color_red="\x1B[38;2;215;0;0m"
+foreground_color_yellow="\x1B[38;2;215;215;95m"
+background_color_black="\x1B[48;2;0;0;0m"
+background_color_blue="\x1B[48;2;0;120;200m"
+background_color_green="\x1B[48;2;0;160;0m"
+background_color_grey="\x1B[48;2;120;120;120m"
+background_color_purple="\x1B[48;2;160;160;220m"
+background_color_red="\x1B[48;2;200;0;0m"
+background_color_yellow="\x1B[48;2;200;200;90m"
 
 # -------------------------------------------------------------------
 # show_content_left
@@ -74,7 +73,7 @@ show_content_center() {
   # Escape strings and remove control characters
   plain_text=$(echo -ne "${*}" | sed -E 's/\x1B\[[0-9;]*[mK]//g')
   # When the tput instruction error occurs, set the terminal width to the string length
-  term_width=$(tput cols 2>/dev/null || echo ${#plain_text})
+  term_width=$(tput cols 2>/dev/null || echo "${#plain_text}")
   padding_width=$(((term_width - ${#plain_text}) / 2))
   ((padding_width < 0)) && padding_width=0
   echo -ne "\x1B[${padding_width}G${*}"
@@ -99,7 +98,7 @@ show_content_right() {
   # Escape strings and remove control characters
   plain_text=$(echo -ne "${*}" | sed -E 's/\x1B\[[0-9;]*[mK]//g')
   # When the tput instruction error occurs, set the terminal width to the string length
-  term_width=$(tput cols 2>/dev/null || echo ${#plain_text})
+  term_width=$(tput cols 2>/dev/null || echo "${#plain_text}")
   padding_width=$((term_width - ${#plain_text}))
   ((padding_width < 0)) && padding_width=0
   echo -ne "\x1B[${padding_width}G${*}"
@@ -166,7 +165,7 @@ show_warn() {
 #   show_error "this is an error message"
 # -------------------------------------------------------------------
 show_error() {
-  echo -ne "${foreground_color_red}[ERROR]${sgr_reset} ${sgr_faint}${*}${sgr_reset}"
+  echo -ne "${foreground_color_red}[ERROR]${sgr_reset} ${sgr_faint}${*}${sgr_reset}" >&2
 }
 
 # -------------------------------------------------------------------

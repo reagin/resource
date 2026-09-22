@@ -3,221 +3,75 @@
 # name: initialize.sh
 # author: reagin
 # github: https://github.com/reagin/resource
-# description: script file for personalizing ubuntu configurations
+# description: personalize the home directory of the current user on
+#              debian / ubuntu (bash or zsh + oh-my-zsh). when run as
+#              root it additionally hardens sshd and tidies /
 
-# enable the following shell options:
-# -E: ensure that err trap is also valid in function, subshell, and command replacements
-# -e: when any command exits in a non-zero state, exit the script immediately
-# -u: when using undefined variables, the script will report an error and exit
-# -o: pipefail: when any command in the pipeline fails, the entire pipeline returns to a failed state
+# -E: err trap is inherited by functions, subshells and substitutions
+# -e: exit immediately when a command fails
+# -u: treat unset variables as an error
+# -o pipefail: a pipeline fails when any of its commands fails
 set -Eeuo pipefail
 
-# setting up temporary working directory when script runs
-trap remove_temp_directory EXIT
+# base url of the shared libraries. override for local testing, e.g.
+#   RESOURCE_LIB_BASE=file:///path/to/shellscript/library bash initialize.sh
+RESOURCE_LIB_BASE="${RESOURCE_LIB_BASE:-https://raw.githubusercontent.com/reagin/resource/refs/heads/main/shellscript/library}"
 
-remove_temp_directory() {
-  if [[ -n "${TEMPDIRECTORY:-}" && -e "${TEMPDIRECTORY}" ]]; then
-    [[ "$(pwd)" =~ ^"${TEMPDIRECTORY}" ]] && popd &>/dev/null
-    rm -rf "${TEMPDIRECTORY}"
-  fi
-}
-
-TEMPDIRECTORY=$(mktemp -dt reagin_directory_XXXXXX 2>/dev/null) || {
-  printf "\x1B[38;2;215;0;0mError: failed to create temporary directory\x1B[0m\n"
+command -v curl &>/dev/null || {
+  printf '\x1B[38;2;215;0;0mError: curl is required, please install it first\x1B[0m\n' >&2
   exit 1
 }
-
-pushd "${TEMPDIRECTORY}" &>/dev/null || {
-  printf "\x1B[38;2;215;0;0mError: failed to pushd temporary directory\x1B[0m\n"
+bootstrap_source=$(curl -fsSL "${RESOURCE_LIB_BASE}/bootstrap.lib.sh") || {
+  printf '\x1B[38;2;215;0;0mError: failed to download %s/bootstrap.lib.sh\x1B[0m\n' "${RESOURCE_LIB_BASE}" >&2
   exit 1
 }
+eval "${bootstrap_source}"
+unset bootstrap_source
 
-# check whether the execution user is root
-check_permission() {
-  printf "\x1B[2mcurrent user is: ${USER}\x1B[0m\n"
+setup_temp_directory
+detect_environment
+load_libraries message utility
+ensure_commands sed:sed chsh:passwd getent:libc-bin
 
-  if [[ "${EUID}" != 0 ]]; then
-    printf "\x1B[38;2;215;0;0mError: please run the script with root\x1B[0m\n"
-    exit 1
-  fi
-}
+# -------------------------------------------------------------------
+# global variables
+# -------------------------------------------------------------------
+target_user="$(id -un)"
+target_group="$(id -gn)"
+readonly target_user target_group
+readonly target_home="${HOME}"
+readonly target_owner="${target_user}:${target_group}"
 
-# check the environment of the current script
-check_environment() {
-  [[ -f "/etc/os-release" ]] && source /etc/os-release
+readonly ohmyzsh_repo="${REPO:-reagin/ohmyzsh}"
+readonly ohmyzsh_branch="${BRANCH:-custom}"
+readonly ohmyzsh_installer_url="https://raw.githubusercontent.com/${ohmyzsh_repo}/${ohmyzsh_branch}/tools/install.sh"
 
-  os_name=$(echo -ne "${NAME}" | awk '{print tolower($1)}')
-  os_type=$(echo -ne "$(uname -s)" | awk '{print tolower($1)}')
+readonly sshd_config_path='/etc/ssh/sshd_config'
+readonly sshd_dropin_path='/etc/ssh/sshd_config.d/00-hardening.conf'
 
-  case "${os_name}" in
-    arch)
-      os_arch=$(uname -m)
-      package_suffix=".pkg.tar.zst"
-      package_manager="pacman -S --noconfirm"
-      package_installer="pacman -U --noconfirm"
-      ;;
-    openwrt)
-      os_arch=$(uname -m)
-      package_suffix=".ipk"
-      package_manager="opkg install"
-      package_installer="opkg install"
-      ;;
-    ubuntu | debian)
-      os_arch=$(dpkg --print-architecture)
-      package_suffix=".deb"
-      package_manager="apt install -y"
-      package_installer="dpkg -i"
-      ;;
-    red | centos | fedora)
-      os_arch=$(uname -m)
-      package_suffix=".rpm"
-      package_manager="dnf install -y"
-      package_installer="rpm -i"
-      ;;
-    *)
-      printf "\x1B[38;2;215;0;0mError: unsupported system for ${os_name}\x1B[0m\n"
-      exit 1
-      ;;
-  esac
+readonly junk_files=('.bash_history' '.cloud-locale-test.skip' '.viminfo' '.wget-hsts' '.sudo_as_admin_successful')
+readonly bash_config_patterns=('.bashrc' '.bash_profile' '.bash_login' '.profile' '.bash_logout' '.bash_history' '.bash_aliases' '.bash_functions' '.bash_completion' '.bash_completion.d' '.bashrc.d')
 
-  printf "\x1B[2mcurrent system is: ${os_arch}_${os_name}_${os_type}\x1B[0m\n"
-}
+declare shell_choice bash_backup_directory=""
 
-# check whether the instructions used in the current script exist
-check_dependencies() {
-  local command_dependency package_dependency
-
-  command_dependency=('sed' 'curl')
-  package_dependency=('sed' 'curl')
-
-  if [[ ${#command_dependency[@]} == 0 ]]; then
-    return 0
-  fi
-
-  printf "\x1B[2mchecking command dependencies now ...\x1B[0m\n"
-
-  for index in "${!command_dependency[@]}"; do
-    printf "\x1B[4C\x1B[2m${command_dependency[index]} - "
-
-    if type -t "${command_dependency[index]}" &>/dev/null; then
-      printf "installed\x1B[0m\n"
-    else
-      printf "not installed\x1B[0m\n"
-      printf "\x1B[8C\x1B[2m${package_manager} ${package_dependency[index]} ... "
-
-      if sh -c "${package_manager} ${package_dependency[index]}" &>/dev/null; then
-        printf "done\x1B[0m\n"
-      else
-        printf "error\x1B[0m\n"
-        printf "\x1B[38;2;215;0;0mError: please run the command manually\x1B[0m\n"
-        exit 1
-      fi
-    fi
-  done
-}
-
-# load external script resources
-source_external_scripts() {
-  local script_file external_script_links command_dependency package_dependency
-
-  command_dependency=()
-  package_dependency=()
-  external_script_links=(
-    'https://raw.githubusercontent.com/reagin/resource/refs/heads/main/shellscript/library/utility.lib.sh'
-  )
-
-  if [[ ${#external_script_links[@]} == 0 ]]; then
-    return 0
-  fi
-
-  printf "\x1B[2mloading external scripts now ...\x1B[0m\n"
-
-  for link in "${external_script_links[@]}"; do
-    printf "\x1B[4C\x1B[2mloading ${link} - "
-
-    script_file=$(mktemp -p "${TEMPDIRECTORY}" -t script_XXXXXX.sh 2>/dev/null) || {
-      printf "error\x1B[0m\n"
-      printf "\x1B[38;2;215;0;0mError: failed to create temporary file\x1B[0m\n"
-      exit 1
-    }
-
-    curl -fsSL "${link}" -o "${script_file}" 2>/dev/null || {
-      printf "error\x1B[0m\n"
-      printf "\x1B[38;2;215;0;0mError: failed to download external script\x1B[0m\n"
-      exit 1
-    }
-
-    source "${script_file}"
-
-    for index in "${!lib_command_dependency[@]}"; do
-      local is_exist="false"
-
-      for cmd in "${command_dependency[@]}"; do
-        if [[ "${cmd}" == "${lib_command_dependency[index]}" ]]; then
-          is_exist="true"
-          break
-        fi
-      done
-
-      if [[ "${is_exist}" == "false" ]]; then
-        command_dependency+=("${lib_command_dependency[index]}")
-        package_dependency+=("${lib_package_dependency[index]}")
-      fi
-    done
-
-    printf "done\x1B[0m\n"
-  done
-
-  if [[ ${#command_dependency[@]} == 0 ]]; then
-    return 0
-  fi
-
-  printf "\x1B[2minstalling external command dependencies ...\x1B[0m\n"
-
-  for index in "${!command_dependency[@]}"; do
-    printf "\x1B[4C\x1B[2m${command_dependency[index]} - "
-
-    if type -t "${command_dependency[index]}" &>/dev/null; then
-      printf "installed\x1B[0m\n"
-    else
-      printf "not installed\x1B[0m\n"
-      printf "\x1B[8C\x1B[2m${package_manager} ${package_dependency[index]} ... "
-
-      if sh -c "${package_manager} ${package_dependency[index]}" &>/dev/null; then
-        printf "done\x1B[0m\n"
-      else
-        printf "error\x1B[0m\n"
-        printf "\x1B[38;2;215;0;0mError: please run the command manually\x1B[0m\n"
-        exit 1
-      fi
-    fi
-  done
-}
-
-# check whether the execution user is root
-check_permission
-# check the environment of the current script
-check_environment
-# check whether the instructions used in the current script exist
-check_dependencies
-# source external script resources
-source_external_scripts
-
-generate_authorized_keys() {
-  cat <<EOF
-ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAaMdAO2khj6esWPJk9CI9s/xBE82SmwbgHgfHgEiPUX reagin's personal key for universal usage
+# -------------------------------------------------------------------
+# file contents
+# -------------------------------------------------------------------
+generate_authorized_key() {
+  cat <<'EOF'
+ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMfi64d3J6MfAREKrUT2vUCm04ZpVhUUvNaPCweDlkly rehug's personal universal access key
 EOF
 }
 
 generate_alias_config() {
-  cat <<EOF
+  cat <<'EOF'
 alias cls='clear'
 alias quit='rm -f ~/.bash_history && history -c && exit'
 EOF
 }
 
 generate_vim_config() {
-  cat <<EOF
+  cat <<'EOF'
 syntax on
 set number
 set nobackup
@@ -234,61 +88,325 @@ set encoding=utf-8
 EOF
 }
 
-debian_custom_initialize() {
-  for user_dir in /root /home/*; do
-    [[ -d "${user_dir}" ]] || {
-      continue
-    }
+generate_zsh_env() {
+  cat <<'EOF'
+# ~/.zshenv - user environment settings
 
-    user_name=$(basename "${user_dir}")
-    junk_files=('.bash_history' '.cloud-locale-test.skip' '.viminfo' '.wget-hsts')
+# Disable system-wide compinit to avoid duplicate runs
+skip_global_compinit=1
 
-    install_content_with_comment 600 "${user_name}:${user_name}" "$(generate_authorized_keys)" "${user_dir}/.ssh/authorized_keys" true
-    install_content_with_comment 644 "${user_name}:${user_name}" "$(generate_alias_config)" "${user_dir}/.bash_aliases" true
-    install_content_with_comment 644 "${user_name}:${user_name}" "$(generate_vim_config)" "${user_dir}/.vimrc" true
-    install_content_with_comment 644 "${user_name}:${user_name}" "" "${user_dir}/.hushlogin" true
-
-    # modify the .bashrc file in the home directory
-    sed -Ei 's/^#?(force_color_prompt).*/\1=yes/Ig' "${user_dir}/.bashrc"
-    sed -Ei '/^# some more ls aliases/{n;N;N;d;}' "${user_dir}/.bashrc"
-    sed -Ei "/^# some more ls aliases/a\alias l='ls -CF'" "${user_dir}/.bashrc"
-    sed -Ei "/^# some more ls aliases/a\alias la='ls -AF'" "${user_dir}/.bashrc"
-    sed -Ei "/^# some more ls aliases/a\alias ll='ls -lAF'" "${user_dir}/.bashrc"
-
-    if [[ "${user_name}" == "root" ]]; then
-      sed -Ei '/\$color_prompt/I{N;s/(ps1)=(.).*\2/\1=\2${debian_chroot:+($debian_chroot)}\\[\\033[01;31m\\]\\u@\\h\\[\\033[00m\\]:\\[\\033[01;34m\\]\\w \\$\\[\\033[00m\\] \2/Ig;}' "${user_dir}/.bashrc"
-    else
-      sed -Ei '/\$color_prompt/I{N;s/(ps1)=(.).*\2/\1=\2${debian_chroot:+($debian_chroot)}\\[\\033[01;32m\\]\\u@\\h\\[\\033[00m\\]:\\[\\033[01;34m\\]\\w \\$\\[\\033[00m\\] \2/Ig;}' "${user_dir}/.bashrc"
-    fi
-
-    # clean junk files in home path
-    for file in "${junk_files[@]}"; do
-      remove_content_with_comment "${user_dir}/${file}"
-    done
-  done
-
-  # modify /etc/ssh/sshd_config configuration
-  sed -Ei 's/^#?(port).*/\1 22/Ig' /etc/ssh/sshd_config
-  sed -Ei 's/^#?(permitrootlogin).*/\1 prohibit-password/Ig' /etc/ssh/sshd_config
-  sed -Ei 's/^#?(passwordauthentication).*/\1 no/Ig' /etc/ssh/sshd_config
-  sed -Ei 's/^#?(permitemptypasswords).*/\1 no/Ig' /etc/ssh/sshd_config
-  sed -Ei 's/^#?(clientaliveinterval).*/\1 60/Ig' /etc/ssh/sshd_config
-  sed -Ei 's/^#?(clientalivecountmax).*/\1 3/Ig' /etc/ssh/sshd_config
-
-  # restart the ssh service
-  systemctl daemon-reload && systemctl restart sshd.service || true
-
-  # clean junk files in root path
-  rm -rf /*.usr-is-merged
-  rm -rf /lost+found
+# Example: set ZDOTDIR if you keep configs elsewhere
+# export ZDOTDIR="$HOME/.config/zsh"
+EOF
 }
 
-# main program entry
-case "${os_name}" in
-  ubuntu | debian)
-    debian_custom_initialize
-    ;;
-  *)
-    show_error "unsupported system for ${os_name}\n"
+# prompt block appended to .bashrc, red user@host for root and green otherwise
+generate_bash_prompt() {
+  local color="32"
+  [[ "${EUID}" == 0 ]] && color="31"
+
+  cat <<EOF
+# >>> reagin prompt >>>
+case "\${TERM:-}" in
+  xterm-color | *-256color | xterm* | screen* | tmux*)
+    PS1='\${debian_chroot:+(\$debian_chroot)}\\[\\033[01;${color}m\\]\\u@\\h\\[\\033[00m\\]:\\[\\033[01;34m\\]\\w \\\$\\[\\033[00m\\] '
     ;;
 esac
+# <<< reagin prompt <<<
+EOF
+}
+
+generate_sshd_hardening() {
+  cat <<'EOF'
+# generated by initialize.sh - loaded before the distribution drop-ins,
+# the first value of each keyword wins in sshd_config
+Port 22
+PermitRootLogin prohibit-password
+PasswordAuthentication no
+PermitEmptyPasswords no
+ClientAliveInterval 60
+ClientAliveCountMax 3
+EOF
+}
+
+# -------------------------------------------------------------------
+# steps shared by both shells
+# -------------------------------------------------------------------
+choose_shell() {
+  shell_choice=$(get_input_until_success "configure bash or zsh for ${target_user}? (bash/zsh): " '^(bash|zsh)$' "please answer bash or zsh")
+  shell_choice="${shell_choice,,}"
+  show_info "configuring ${shell_choice} for ${target_user} in ${target_home}\n"
+}
+
+install_authorized_key() {
+  local key_file="${target_home}/.ssh/authorized_keys" key
+  key="$(generate_authorized_key)"
+
+  install -dm700 "${target_home}/.ssh"
+
+  if [[ -f "${key_file}" ]] && grep -qxF -- "${key}" "${key_file}"; then
+    show_info "ssh key already present in ${key_file}\n"
+  elif [[ -f "${key_file}" ]]; then
+    show_info "appending ssh key to ${key_file}\n"
+    printf '%s\n' "${key}" >>"${key_file}"
+    chmod 600 "${key_file}"
+  else
+    install_content_with_comment 600 "${target_owner}" "${key}" "${key_file}" true
+  fi
+}
+
+configure_common() {
+  local file
+
+  install_authorized_key
+  install_content_with_comment 644 "${target_owner}" "$(generate_vim_config)" "${target_home}/.vimrc" true
+  install_content_with_comment 644 "${target_owner}" "" "${target_home}/.hushlogin" true
+
+  for file in "${junk_files[@]}"; do
+    [[ -e "${target_home}/${file}" ]] && remove_content_with_comment "${target_home}/${file}"
+  done
+  return 0
+}
+
+# change the login shell when it differs from the wanted one
+ensure_login_shell() {
+  local wanted="${1}" current
+
+  current=$(getent passwd "${target_user}" | cut -d: -f7)
+  # compare resolved paths so /bin/bash and /usr/bin/bash are treated the same
+  if [[ "$(realpath -e "${current}" 2>/dev/null)" == "$(realpath -e "${wanted}" 2>/dev/null)" ]]; then
+    show_info "login shell of ${target_user} is already ${wanted}\n"
+    return 0
+  fi
+
+  grep -qxF -- "${wanted}" /etc/shells 2>/dev/null || {
+    show_error "${wanted} is not listed in /etc/shells\n"
+    return 1
+  }
+
+  show_info "changing login shell of ${target_user} to ${wanted} (may ask for your password)\n"
+  chsh -s "${wanted}" || {
+    show_error "failed to change login shell, run manually: chsh -s ${wanted}\n"
+    return 1
+  }
+  show_success "login shell of ${target_user} changed to ${wanted}\n"
+}
+
+# -------------------------------------------------------------------
+# bash
+# -------------------------------------------------------------------
+set_bash_alias() {
+  local name="${1}" value="${2}" bashrc="${target_home}/.bashrc"
+
+  if grep -Eq "^alias ${name}=" "${bashrc}"; then
+    sed -Ei "s|^alias ${name}=.*|alias ${name}='${value}'|" "${bashrc}"
+  else
+    printf "alias %s='%s'\n" "${name}" "${value}" >>"${bashrc}"
+  fi
+}
+
+configure_bash() {
+  local bashrc="${target_home}/.bashrc"
+
+  if [[ ! -f "${bashrc}" ]]; then
+    if [[ -f /etc/skel/.bashrc ]]; then
+      show_info "restoring ${bashrc} from /etc/skel\n"
+      install -m 644 /etc/skel/.bashrc "${bashrc}"
+    else
+      show_info "creating empty ${bashrc}\n"
+      : >"${bashrc}"
+    fi
+  fi
+
+  install_content_with_comment 644 "${target_owner}" "$(generate_alias_config)" "${target_home}/.bash_aliases" true
+
+  show_info "updating ${bashrc}\n"
+  sed -Ei 's/^#?(force_color_prompt).*/\1=yes/I' "${bashrc}"
+  set_bash_alias ll 'ls -lAF'
+  set_bash_alias la 'ls -AF'
+  set_bash_alias l 'ls -CF'
+
+  # replace a previously appended prompt block, then append the new one
+  sed -i '/^# >>> reagin prompt >>>$/,/^# <<< reagin prompt <<<$/d' "${bashrc}"
+  printf '\n%s\n' "$(generate_bash_prompt)" >>"${bashrc}"
+  show_success "updated ${bashrc}\n"
+
+  ensure_login_shell "$(command -v bash)"
+}
+
+# -------------------------------------------------------------------
+# zsh
+# -------------------------------------------------------------------
+backup_bash_config() {
+  local pattern file moved=0
+
+  bash_backup_directory=$(mktemp -d "/tmp/bash_backup_${target_user}_XXXXXX") || {
+    show_error "failed to create backup directory under /tmp\n"
+    return 1
+  }
+
+  shopt -s nullglob dotglob
+  for pattern in "${bash_config_patterns[@]}"; do
+    for file in "${target_home}/${pattern}"*; do
+      [[ -e "${file}" || -L "${file}" ]] || continue
+      show_info "moving ${file} to ${bash_backup_directory}/ - "
+      if mv -- "${file}" "${bash_backup_directory}/"; then
+        show_text "done\n"
+        moved=$((moved + 1))
+      else
+        show_text "error\n"
+      fi
+    done
+  done
+  shopt -u nullglob dotglob
+
+  if [[ ${moved} -eq 0 ]]; then
+    rmdir "${bash_backup_directory}" 2>/dev/null || true
+    bash_backup_directory=""
+    show_info "no bash configuration files found in ${target_home}\n"
+  else
+    show_success "moved ${moved} bash configuration file(s) to ${bash_backup_directory}\n"
+  fi
+}
+
+install_ohmyzsh() {
+  local installer_file
+
+  if [[ -d "${target_home}/.oh-my-zsh" ]]; then
+    show_info "oh-my-zsh already installed at ${target_home}/.oh-my-zsh\n"
+    return 0
+  fi
+
+  installer_file=$(mktemp -p "${TEMPDIRECTORY}" ohmyzsh_installer_XXXXXX.sh)
+
+  show_info "downloading oh-my-zsh installer from ${ohmyzsh_installer_url}\n"
+  curl -fsSL "${ohmyzsh_installer_url}" -o "${installer_file}" || {
+    show_error "failed to download ${ohmyzsh_installer_url}\n"
+    return 1
+  }
+
+  show_info "running oh-my-zsh installer (REPO=${ohmyzsh_repo} BRANCH=${ohmyzsh_branch})\n"
+  env REPO="${ohmyzsh_repo}" BRANCH="${ohmyzsh_branch}" RUNZSH=no CHSH=no sh "${installer_file}" || {
+    show_error "oh-my-zsh installer failed\n"
+    return 1
+  }
+  show_success "installed oh-my-zsh\n"
+}
+
+configure_zsh() {
+  ensure_commands zsh:zsh git:git
+  backup_bash_config
+  install_content_with_comment 644 "${target_owner}" "$(generate_zsh_env)" "${target_home}/.zshenv" true
+  install_ohmyzsh
+  ensure_login_shell "$(command -v zsh)"
+}
+
+# -------------------------------------------------------------------
+# root only: sshd hardening and / cleanup
+# -------------------------------------------------------------------
+sshd_test() {
+  local sshd_bin output
+
+  sshd_bin=$(command -v sshd || true)
+  [[ -n "${sshd_bin}" ]] || sshd_bin="/usr/sbin/sshd"
+  [[ -x "${sshd_bin}" ]] || return 0 # nothing to validate without sshd
+
+  # the privilege separation directory is normally created by the service
+  # unit; sshd -t refuses to run without it on a freshly installed system
+  [[ -d /run/sshd ]] || install -dm755 /run/sshd
+
+  if ! output=$("${sshd_bin}" -t 2>&1); then
+    show_error "sshd -t reported: ${output}\n"
+    return 1
+  fi
+}
+
+harden_sshd() {
+  local keyword
+
+  if [[ ! -f "${sshd_config_path}" ]]; then
+    show_warn "${sshd_config_path} not found, skipping sshd hardening\n"
+    return 0
+  fi
+
+  show_warn "sshd will only accept key based logins, make sure your key is in ~/.ssh/authorized_keys\n"
+
+  if grep -Eq '^\s*Include\s+/etc/ssh/sshd_config\.d/\*\.conf' "${sshd_config_path}"; then
+    # a drop-in sorted before 50-cloud-init.conf wins over the vendor defaults
+    install_content_with_comment 644 "root:root" "$(generate_sshd_hardening)" "${sshd_dropin_path}" true
+
+    if ! sshd_test; then
+      show_error "sshd rejected the new configuration, removing ${sshd_dropin_path}\n"
+      rm -f "${sshd_dropin_path}"
+      return 1
+    fi
+  else
+    show_info "no Include directive found, editing ${sshd_config_path} directly\n"
+    cp -p "${sshd_config_path}" "${sshd_config_path}.bak"
+
+    for keyword in 'Port 22' 'PermitRootLogin prohibit-password' 'PasswordAuthentication no' \
+      'PermitEmptyPasswords no' 'ClientAliveInterval 60' 'ClientAliveCountMax 3'; do
+      if grep -Eiq "^#?\s*${keyword%% *}\b" "${sshd_config_path}"; then
+        sed -Ei "s/^#?\s*(${keyword%% *})\b.*/${keyword}/I" "${sshd_config_path}"
+      else
+        printf '%s\n' "${keyword}" >>"${sshd_config_path}"
+      fi
+    done
+
+    if ! sshd_test; then
+      show_error "sshd rejected the new configuration, restoring ${sshd_config_path}.bak\n"
+      mv "${sshd_config_path}.bak" "${sshd_config_path}"
+      return 1
+    fi
+    rm -f "${sshd_config_path}.bak"
+  fi
+
+  show_success "sshd configuration validated\n"
+
+  if systemctl restart ssh.service &>/dev/null || systemctl restart sshd.service &>/dev/null; then
+    show_success "restarted ssh service\n"
+  else
+    show_warn "could not restart the ssh service, restart it manually to apply the changes\n"
+  fi
+}
+
+# only the usr-is-merged marker directories are removed; other empty
+# directories in / (e.g. /mnt, /srv, /opt) are part of the filesystem standard
+clean_root_directory() {
+  local directory
+
+  shopt -s nullglob
+  for directory in /*.usr-is-merged; do
+    [[ -d "${directory}" ]] || continue
+    show_info "removing empty directory ${directory} - "
+    if rmdir "${directory}" 2>/dev/null; then
+      show_text "done\n"
+    else
+      show_text "skipped (not empty)\n"
+    fi
+  done
+  shopt -u nullglob
+}
+
+# -------------------------------------------------------------------
+# main program entry
+# -------------------------------------------------------------------
+choose_shell
+configure_common
+
+case "${shell_choice}" in
+  bash) configure_bash ;;
+  zsh) configure_zsh ;;
+esac
+
+if [[ "${EUID}" == 0 ]]; then
+  harden_sshd
+  clean_root_directory
+else
+  show_info "not running as root, skipping sshd hardening and / cleanup\n"
+fi
+
+echo
+show_success "initialization for ${target_user} finished, re-login to use the new shell\n"
+[[ -n "${bash_backup_directory}" ]] && show_info "previous bash configuration is kept at ${bash_backup_directory}\n"
+exit 0

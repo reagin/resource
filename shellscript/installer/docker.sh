@@ -3,278 +3,152 @@
 # name: docker.sh
 # author: reagin
 # github: https://github.com/reagin/resource
-# description: install docker engine for linux
+# description: install docker engine for debian / ubuntu from the official
+#              apt repository
 
-# enable the following shell options:
-# -E: ensure that err trap is also valid in function, subshell, and command replacements
-# -e: when any command exits in a non-zero state, exit the script immediately
-# -u: when using undefined variables, the script will report an error and exit
-# -o: pipefail: when any command in the pipeline fails, the entire pipeline returns to a failed state
+# -E: err trap is inherited by functions, subshells and substitutions
+# -e: exit immediately when a command fails
+# -u: treat unset variables as an error
+# -o pipefail: a pipeline fails when any of its commands fails
 set -Eeuo pipefail
 
-# setting up temporary working directory when script runs
-trap remove_temp_directory EXIT
+# base url of the shared libraries. override for local testing, e.g.
+#   RESOURCE_LIB_BASE=file:///path/to/shellscript/library bash docker.sh
+RESOURCE_LIB_BASE="${RESOURCE_LIB_BASE:-https://raw.githubusercontent.com/reagin/resource/refs/heads/main/shellscript/library}"
 
-remove_temp_directory() {
-  if [[ -n "${TEMPDIRECTORY:-}" && -e "${TEMPDIRECTORY}" ]]; then
-    [[ "$(pwd)" =~ ^"${TEMPDIRECTORY}" ]] && popd &>/dev/null
-    rm -rf "${TEMPDIRECTORY}"
-  fi
-}
-
-TEMPDIRECTORY=$(mktemp -dt reagin_directory_XXXXXX 2>/dev/null) || {
-  printf "\x1B[38;2;215;0;0mError: failed to create temporary directory\x1B[0m\n"
+command -v curl &>/dev/null || {
+  printf '\x1B[38;2;215;0;0mError: curl is required, please install it first\x1B[0m\n' >&2
   exit 1
 }
-
-pushd "${TEMPDIRECTORY}" &>/dev/null || {
-  printf "\x1B[38;2;215;0;0mError: failed to pushd temporary directory\x1B[0m\n"
+bootstrap_source=$(curl -fsSL "${RESOURCE_LIB_BASE}/bootstrap.lib.sh") || {
+  printf '\x1B[38;2;215;0;0mError: failed to download %s/bootstrap.lib.sh\x1B[0m\n' "${RESOURCE_LIB_BASE}" >&2
   exit 1
 }
+eval "${bootstrap_source}"
+unset bootstrap_source
 
-# check whether the execution user is root
-check_permission() {
-  printf "\x1B[2mcurrent user is: ${USER}\x1B[0m\n"
+setup_temp_directory
+require_root
+detect_environment
+load_libraries message utility
+ensure_commands update-ca-certificates:ca-certificates systemctl:systemd
 
-  if [[ "${EUID}" != 0 ]]; then
-    printf "\x1B[38;2;215;0;0mError: please run the script with root\x1B[0m\n"
-    exit 1
-  fi
-}
+# -------------------------------------------------------------------
+# global variables (os_family / os_arch / os_codename come from bootstrap)
+# -------------------------------------------------------------------
+# shellcheck disable=SC2154
+readonly docker_repo_url="https://download.docker.com/linux/${os_family}"
+readonly docker_keyring_dir='/etc/apt/keyrings'
+readonly docker_keyring_path="${docker_keyring_dir}/docker.asc"
+readonly docker_apt_sources='/etc/apt/sources.list.d/docker.sources'
+readonly docker_packages=(docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin)
+readonly conflicting_packages=(docker.io docker-doc docker-compose podman-docker containerd runc)
 
-# check the environment of the current script
-check_environment() {
-  [[ -f "/etc/os-release" ]] && source /etc/os-release
+# -------------------------------------------------------------------
+# steps
+# -------------------------------------------------------------------
+remove_conflicting_packages() {
+  local package installed=()
 
-  os_name=$(echo -ne "${NAME}" | awk '{print tolower($1)}')
-  os_type=$(echo -ne "$(uname -s)" | awk '{print tolower($1)}')
-
-  case "${os_name}" in
-    arch)
-      os_arch=$(uname -m)
-      package_suffix=".pkg.tar.zst"
-      package_manager="pacman -S --noconfirm"
-      package_installer="pacman -U --noconfirm"
-      ;;
-    openwrt)
-      os_arch=$(uname -m)
-      package_suffix=".ipk"
-      package_manager="opkg install"
-      package_installer="opkg install"
-      ;;
-    ubuntu | debian)
-      os_arch=$(dpkg --print-architecture)
-      package_suffix=".deb"
-      package_manager="apt install -y"
-      package_installer="dpkg -i"
-      ;;
-    red | centos | fedora)
-      os_arch=$(uname -m)
-      package_suffix=".rpm"
-      package_manager="dnf install -y"
-      package_installer="rpm -i"
-      ;;
-    *)
-      printf "\x1B[38;2;215;0;0mError: unsupported system for ${os_name}\x1B[0m\n"
-      exit 1
-      ;;
-  esac
-
-  printf "\x1B[2mcurrent system is: ${os_arch}_${os_name}_${os_type}\x1B[0m\n"
-}
-
-# check whether the instructions used in the current script exist
-check_dependencies() {
-  local command_dependency package_dependency
-
-  command_dependency=('gpg' 'curl' 'update-ca-certificates')
-  package_dependency=('gpg' 'curl' 'ca-certificates')
-
-  if [[ ${#command_dependency[@]} == 0 ]]; then
-    return 0
-  fi
-
-  printf "\x1B[2mchecking command dependencies now ...\x1B[0m\n"
-
-  for index in "${!command_dependency[@]}"; do
-    printf "\x1B[4C\x1B[2m${command_dependency[index]} - "
-
-    if type -t "${command_dependency[index]}" &>/dev/null; then
-      printf "installed\x1B[0m\n"
-    else
-      printf "not installed\x1B[0m\n"
-      printf "\x1B[8C\x1B[2m${package_manager} ${package_dependency[index]} ... "
-
-      if sh -c "${package_manager} ${package_dependency[index]}" &>/dev/null; then
-        printf "done\x1B[0m\n"
-      else
-        printf "error\x1B[0m\n"
-        printf "\x1B[38;2;215;0;0mError: please run the command manually\x1B[0m\n"
-        exit 1
-      fi
-    fi
-  done
-}
-
-# load external script resources
-source_external_scripts() {
-  local script_file external_script_links command_dependency package_dependency
-
-  command_dependency=()
-  package_dependency=()
-  external_script_links=(
-    'https://raw.githubusercontent.com/reagin/resource/refs/heads/main/shellscript/library/message.lib.sh'
-    'https://raw.githubusercontent.com/reagin/resource/refs/heads/main/shellscript/library/utility.lib.sh'
-  )
-
-  if [[ ${#external_script_links[@]} == 0 ]]; then
-    return 0
-  fi
-
-  printf "\x1B[2mloading external scripts now ...\x1B[0m\n"
-
-  for link in "${external_script_links[@]}"; do
-    printf "\x1B[4C\x1B[2mloading ${link} - "
-
-    script_file=$(mktemp -p "${TEMPDIRECTORY}" -t script_XXXXXX.sh 2>/dev/null) || {
-      printf "error\x1B[0m\n"
-      printf "\x1B[38;2;215;0;0mError: failed to create temporary file\x1B[0m\n"
-      exit 1
-    }
-
-    curl -fsSL "${link}" -o "${script_file}" 2>/dev/null || {
-      printf "error\x1B[0m\n"
-      printf "\x1B[38;2;215;0;0mError: failed to download external script\x1B[0m\n"
-      exit 1
-    }
-
-    source "${script_file}"
-
-    for index in "${!lib_command_dependency[@]}"; do
-      local is_exist="false"
-
-      for cmd in "${command_dependency[@]}"; do
-        if [[ "${cmd}" == "${lib_command_dependency[index]}" ]]; then
-          is_exist="true"
-          break
-        fi
-      done
-
-      if [[ "${is_exist}" == "false" ]]; then
-        command_dependency+=("${lib_command_dependency[index]}")
-        package_dependency+=("${lib_package_dependency[index]}")
-      fi
-    done
-
-    printf "done\x1B[0m\n"
+  for package in "${conflicting_packages[@]}"; do
+    package_installed "${package}" && installed+=("${package}")
   done
 
-  if [[ ${#command_dependency[@]} == 0 ]]; then
-    return 0
-  fi
+  [[ ${#installed[@]} -gt 0 ]] || return 0
 
-  printf "\x1B[2minstalling external command dependencies ...\x1B[0m\n"
-
-  for index in "${!command_dependency[@]}"; do
-    printf "\x1B[4C\x1B[2m${command_dependency[index]} - "
-
-    if type -t "${command_dependency[index]}" &>/dev/null; then
-      printf "installed\x1B[0m\n"
-    else
-      printf "not installed\x1B[0m\n"
-      printf "\x1B[8C\x1B[2m${package_manager} ${package_dependency[index]} ... "
-
-      if sh -c "${package_manager} ${package_dependency[index]}" &>/dev/null; then
-        printf "done\x1B[0m\n"
-      else
-        printf "error\x1B[0m\n"
-        printf "\x1B[38;2;215;0;0mError: please run the command manually\x1B[0m\n"
-        exit 1
-      fi
-    fi
-  done
+  show_warn "removing packages that conflict with docker-ce: ${installed[*]}\n"
+  env DEBIAN_FRONTEND=noninteractive apt-get remove -y "${installed[@]}" &>/dev/null || {
+    show_error "failed to remove conflicting packages, please run manually: apt-get remove ${installed[*]}\n"
+    return 1
+  }
+  show_success "removed conflicting packages\n"
 }
 
-# check whether the execution user is root
-check_permission
-# check the environment of the current script
-check_environment
-# check whether the instructions used in the current script exist
-check_dependencies
-# source external script resources
-source_external_scripts
+install_docker_keyring() {
+  show_info "installing docker gpg key to ${docker_keyring_path}\n"
 
-# ubuntu/debian installer
-generate_debian_docker_source() {
+  install -dm755 "${docker_keyring_dir}"
+  curl -fsSL "${docker_repo_url}/gpg" -o "${docker_keyring_path}" || {
+    show_error "failed to download ${docker_repo_url}/gpg\n"
+    return 1
+  }
+  chmod a+r "${docker_keyring_path}"
+
+  show_success "installed docker gpg key\n"
+}
+
+generate_docker_sources() {
   cat <<EOF
 Types: deb
-URIs: https://download.docker.com/linux/${os_name}
-Suites: $(. /etc/os-release && echo "${UBUNTU_CODENAME:-$VERSION_CODENAME}")
+URIs: ${docker_repo_url}
+Suites: ${os_codename}
 Components: stable
-Architectures: $(dpkg --print-architecture)
-Signed-By: ${docker_gpg_path}
+Architectures: ${os_arch:?}
+Signed-By: ${docker_keyring_path}
 EOF
 }
 
-debian_installer_docker() {
-  docker_gpg_name="docker-engine.asc"
-  docker_gpg_path="/etc/apt/keyrings/docker-engine.gpg"
-  docker_apt_sources="/etc/apt/sources.list.d/docker-engine.sources"
-
-  show_info "downloading the gpg key from https://download.docker.com/linux/${os_name}/gpg\n"
-  curl -fsSL https://download.docker.com/linux/${os_name}/gpg -o "${docker_gpg_name}" &>/dev/null || {
-    show_error "failed to download the gpg key from https://download.docker.com/linux/${os_name}/gpg\n"
+install_docker_sources() {
+  [[ -n "${os_codename}" ]] || {
+    show_error "could not determine the distribution codename from /etc/os-release\n"
     return 1
   }
-  show_success "successfully download the gpg key from https://download.docker.com/linux/${os_name}/gpg\n"
 
-  rm -rf "${docker_gpg_path}"
+  install_content_with_comment 644 "root:root" "$(generate_docker_sources)" "${docker_apt_sources}" true
 
-  show_info "converting gpg file format by gpg --dearmor -o ${docker_gpg_path} ${docker_gpg_name}\n"
-  gpg --dearmor -o "${docker_gpg_path}" "${docker_gpg_name}" &>/dev/null || {
-    show_error "failed to convert gpg file format\n"
+  show_info "updating apt package index\n"
+  env DEBIAN_FRONTEND=noninteractive apt-get update -qq &>/dev/null || {
+    show_error "failed to update apt package index, check ${docker_apt_sources}\n"
     return 1
   }
-  show_success "successfully convert gpg file format\n"
-
-  install_content_with_comment 644 "root:root" "$(generate_debian_docker_source)" "${docker_apt_sources}" true
-
-  show_info "updating apt repository information\n"
-  apt-get update &>/dev/null || {
-    show_error "failed to update apt repository information\n"
-    return 1
-  }
-  show_success "successfully update apt repository information\n"
-
-  show_info "installing docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin\n"
-  apt-get install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin -y &>/dev/null || {
-    show_error "failed to install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin\n"
-    return 1
-  }
-  show_success "successfully install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin\n"
-
-  for user_dir in /home/*; do
-    [[ -d "${user_dir}" ]] || {
-      continue
-    }
-
-    user_name=$(basename "${user_dir}")
-
-    show_info "adding ${user_name} to the docker group\n"
-    usermod -aG docker "${user_name}" &>/dev/null || {
-      show_error "failed to add ${user_name} to the docker group\n"
-      return 1
-    }
-    show_success "successfully add ${user_name} to the docker group\n"
-  done
+  show_success "updated apt package index\n"
 }
 
+install_docker_packages() {
+  show_info "installing ${docker_packages[*]}\n"
+  env DEBIAN_FRONTEND=noninteractive apt-get install -y "${docker_packages[@]}" &>/dev/null || {
+    show_error "failed to install docker packages, please run manually: apt-get install ${docker_packages[*]}\n"
+    return 1
+  }
+  show_success "installed ${docker_packages[*]}\n"
+}
+
+start_docker_service() {
+  show_info "enabling and starting docker.service\n"
+  systemctl enable --now docker.service &>/dev/null || {
+    show_error "failed to start docker.service, check: journalctl -u docker.service\n"
+    return 1
+  }
+  show_success "docker.service is running\n"
+}
+
+verify_docker() {
+  local version
+
+  version=$(docker --version 2>/dev/null) || {
+    show_error "docker command is not available after installation\n"
+    return 1
+  }
+  show_success "${version}\n"
+}
+
+print_group_hint() {
+  local example_user="${SUDO_USER:-<username>}"
+
+  echo
+  show_info "docker was installed without granting any user access to the daemon.\n"
+  show_info "membership of the docker group is equivalent to root, grant it deliberately:\n"
+  show_text "    usermod -aG docker ${example_user}\n"
+  show_text "    newgrp docker    # or log out and back in to apply the new group\n"
+}
+
+# -------------------------------------------------------------------
 # main program entry
-case "${os_name}" in
-  ubuntu | debian)
-    debian_installer_docker
-    ;;
-  *)
-    show_error "unsupported system for ${os_name}\n"
-    ;;
-esac
+# -------------------------------------------------------------------
+remove_conflicting_packages
+install_docker_keyring
+install_docker_sources
+install_docker_packages
+start_docker_service
+verify_docker
+print_group_hint

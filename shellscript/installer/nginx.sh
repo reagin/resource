@@ -3,295 +3,220 @@
 # name: nginx.sh
 # author: reagin
 # github: https://github.com/reagin/resource
-# description: install nginx for linux
+# description: install nginx for debian / ubuntu with a wildcard let's
+#              encrypt certificate issued through the cloudflare dns plugin
+#
+# resulting layout (for the apex domain example.com):
+#   /etc/letsencrypt/live/example.com/          certificate for example.com + *.example.com
+#   /etc/nginx/nginx.conf                       default servers redirect to https://www.example.com
+#   /etc/nginx/nginxconfig.io/{security,general}.conf
+#   /etc/nginx/sites-available/@.example.com.conf        apex -> www redirect
+#   /etc/nginx/sites-available/www.example.com.conf      static site, root /var/www/www.example.com/public
+#   /etc/nginx/sites-available/<sub>.example.com.conf    reverse proxy subdomains
+#   /etc/nginx/conf.d/<site>/*.conf             location snippets included by each site
+#   /etc/nginx/sites-enabled/*.conf             symlinks to the enabled sites
 
-# enable the following shell options:
-# -E: ensure that err trap is also valid in function, subshell, and command replacements
-# -e: when any command exits in a non-zero state, exit the script immediately
-# -u: when using undefined variables, the script will report an error and exit
-# -o: pipefail: when any command in the pipeline fails, the entire pipeline returns to a failed state
+# -E: err trap is inherited by functions, subshells and substitutions
+# -e: exit immediately when a command fails
+# -u: treat unset variables as an error
+# -o pipefail: a pipeline fails when any of its commands fails
 set -Eeuo pipefail
 
-# setting up temporary working directory when script runs
-trap remove_temp_directory EXIT
+# base url of the shared libraries. override for local testing, e.g.
+#   RESOURCE_LIB_BASE=file:///path/to/shellscript/library bash nginx.sh
+RESOURCE_LIB_BASE="${RESOURCE_LIB_BASE:-https://raw.githubusercontent.com/reagin/resource/refs/heads/main/shellscript/library}"
 
-remove_temp_directory() {
-  if [[ -n "${TEMPDIRECTORY:-}" && -e "${TEMPDIRECTORY}" ]]; then
-    [[ "$(pwd)" =~ ^"${TEMPDIRECTORY}" ]] && popd &>/dev/null
-    rm -rf "${TEMPDIRECTORY}"
-  fi
-}
-
-TEMPDIRECTORY=$(mktemp -dt reagin_directory_XXXXXX 2>/dev/null) || {
-  printf "\x1B[38;2;215;0;0mError: failed to create temporary directory\x1B[0m\n"
+command -v curl &>/dev/null || {
+  printf '\x1B[38;2;215;0;0mError: curl is required, please install it first\x1B[0m\n' >&2
   exit 1
 }
-
-pushd "${TEMPDIRECTORY}" &>/dev/null || {
-  printf "\x1B[38;2;215;0;0mError: failed to pushd temporary directory\x1B[0m\n"
+bootstrap_source=$(curl -fsSL "${RESOURCE_LIB_BASE}/bootstrap.lib.sh") || {
+  printf '\x1B[38;2;215;0;0mError: failed to download %s/bootstrap.lib.sh\x1B[0m\n' "${RESOURCE_LIB_BASE}" >&2
   exit 1
 }
+eval "${bootstrap_source}"
+unset bootstrap_source
 
-# check whether the execution user is root
-check_permission() {
-  printf "\x1B[2mcurrent user is: ${USER}\x1B[0m\n"
+setup_temp_directory
+require_root
+detect_environment
+load_libraries message utility
+ensure_commands openssl getent:libc-bin adduser:adduser systemctl:systemd
 
-  if [[ "${EUID}" != 0 ]]; then
-    printf "\x1B[38;2;215;0;0mError: please run the script with root\x1B[0m\n"
-    exit 1
-  fi
-}
+# -------------------------------------------------------------------
+# global variables
+# -------------------------------------------------------------------
+readonly global_config_path='/etc/letsencrypt/cloudflare.ini'
+readonly deploy_hook_path='/etc/letsencrypt/renewal-hooks/deploy/nginx-reload.sh'
+readonly dhparam_path='/etc/nginx/dhparam.pem'
+readonly sites_available='/etc/nginx/sites-available'
+readonly sites_enabled='/etc/nginx/sites-enabled'
+readonly snippets_root='/etc/nginx/conf.d'
 
-# check the environment of the current script
-check_environment() {
-  [[ -f "/etc/os-release" ]] && source /etc/os-release
+declare user_email user_domain www_domain cloudflare_token
+declare certificate_path certificate_key_path
+declare http2_directive listen_http2
 
-  os_name=$(echo -ne "${NAME}" | awk '{print tolower($1)}')
-  os_type=$(echo -ne "$(uname -s)" | awk '{print tolower($1)}')
-
-  case "${os_name}" in
-    arch)
-      os_arch=$(uname -m)
-      package_suffix=".pkg.tar.zst"
-      package_manager="pacman -S --noconfirm"
-      package_installer="pacman -U --noconfirm"
-      ;;
-    openwrt)
-      os_arch=$(uname -m)
-      package_suffix=".ipk"
-      package_manager="opkg install"
-      package_installer="opkg install"
-      ;;
-    ubuntu | debian)
-      os_arch=$(dpkg --print-architecture)
-      package_suffix=".deb"
-      package_manager="apt install -y"
-      package_installer="dpkg -i"
-      ;;
-    red | centos | fedora)
-      os_arch=$(uname -m)
-      package_suffix=".rpm"
-      package_manager="dnf install -y"
-      package_installer="rpm -i"
-      ;;
-    *)
-      printf "\x1B[38;2;215;0;0mError: unsupported system for ${os_name}\x1B[0m\n"
-      exit 1
-      ;;
-  esac
-
-  printf "\x1B[2mcurrent system is: ${os_arch}_${os_name}_${os_type}\x1B[0m\n"
-}
-
-# check whether the instructions used in the current script exist
-check_dependencies() {
-  local command_dependency package_dependency
-
-  command_dependency=('curl' 'openssl' 'sed' 'grep' 'logrotate' 'awk' 'mktemp' 'systemctl' 'adduser')
-  package_dependency=('curl' 'openssl' 'sed' 'grep' 'logrotate' 'gawk' 'coreutils' 'systemd' 'passwd')
-
-  if [[ ${#command_dependency[@]} == 0 ]]; then
-    return 0
-  fi
-
-  printf "\x1B[2mchecking command dependencies now ...\x1B[0m\n"
-
-  for index in "${!command_dependency[@]}"; do
-    printf "\x1B[4C\x1B[2m${command_dependency[index]} - "
-
-    if type -t "${command_dependency[index]}" &>/dev/null; then
-      printf "installed\x1B[0m\n"
-    else
-      printf "not installed\x1B[0m\n"
-      printf "\x1B[8C\x1B[2m${package_manager} ${package_dependency[index]} ... "
-
-      if sh -c "${package_manager} ${package_dependency[index]}" &>/dev/null; then
-        printf "done\x1B[0m\n"
-      else
-        printf "error\x1B[0m\n"
-        printf "\x1B[38;2;215;0;0mError: please run the command manually\x1B[0m\n"
-        exit 1
-      fi
-    fi
-  done
-}
-
-# load external script resources
-source_external_scripts() {
-  local script_file external_script_links command_dependency package_dependency
-
-  command_dependency=()
-  package_dependency=()
-  external_script_links=(
-    'https://raw.githubusercontent.com/reagin/resource/refs/heads/main/shellscript/library/message.lib.sh'
-    'https://raw.githubusercontent.com/reagin/resource/refs/heads/main/shellscript/library/utility.lib.sh'
-  )
-
-  if [[ ${#external_script_links[@]} == 0 ]]; then
-    return 0
-  fi
-
-  printf "\x1B[2mloading external scripts now ...\x1B[0m\n"
-
-  for link in "${external_script_links[@]}"; do
-    printf "\x1B[4C\x1B[2mloading ${link} - "
-
-    script_file=$(mktemp -p "${TEMPDIRECTORY}" -t script_XXXXXX.sh 2>/dev/null) || {
-      printf "error\x1B[0m\n"
-      printf "\x1B[38;2;215;0;0mError: failed to create temporary file\x1B[0m\n"
-      exit 1
-    }
-
-    curl -fsSL "${link}" -o "${script_file}" 2>/dev/null || {
-      printf "error\x1B[0m\n"
-      printf "\x1B[38;2;215;0;0mError: failed to download external script\x1B[0m\n"
-      exit 1
-    }
-
-    source "${script_file}"
-
-    for index in "${!lib_command_dependency[@]}"; do
-      local is_exist="false"
-
-      for cmd in "${command_dependency[@]}"; do
-        if [[ "${cmd}" == "${lib_command_dependency[index]}" ]]; then
-          is_exist="true"
-          break
-        fi
-      done
-
-      if [[ "${is_exist}" == "false" ]]; then
-        command_dependency+=("${lib_command_dependency[index]}")
-        package_dependency+=("${lib_package_dependency[index]}")
-      fi
-    done
-
-    printf "done\x1B[0m\n"
-  done
-
-  if [[ ${#command_dependency[@]} == 0 ]]; then
-    return 0
-  fi
-
-  printf "\x1B[2minstalling external command dependencies ...\x1B[0m\n"
-
-  for index in "${!command_dependency[@]}"; do
-    printf "\x1B[4C\x1B[2m${command_dependency[index]} - "
-
-    if type -t "${command_dependency[index]}" &>/dev/null; then
-      printf "installed\x1B[0m\n"
-    else
-      printf "not installed\x1B[0m\n"
-      printf "\x1B[8C\x1B[2m${package_manager} ${package_dependency[index]} ... "
-
-      if sh -c "${package_manager} ${package_dependency[index]}" &>/dev/null; then
-        printf "done\x1B[0m\n"
-      else
-        printf "error\x1B[0m\n"
-        printf "\x1B[38;2;215;0;0mError: please run the command manually\x1B[0m\n"
-        exit 1
-      fi
-    fi
-  done
-}
-
-# check whether the execution user is root
-check_permission
-# check the environment of the current script
-check_environment
-# check whether the instructions used in the current script exist
-check_dependencies
-# source external script resources
-source_external_scripts
-
-# define global variables
-declare user_name
-declare user_email
-declare user_domain
-declare user_password
-declare cloudflare_token
-declare global_config_path='/etc/letsencrypt/cloudfalre.ini'
-
-declare certificate_path
-declare certificate_key_path
-
-# loading the configuration file
+# -------------------------------------------------------------------
+# configuration
+# -------------------------------------------------------------------
 generate_global_config() {
   cat <<EOF
-user_name=${user_name}
+# generated by nginx.sh, also used as certbot cloudflare credentials
 user_email=${user_email}
 user_domain=${user_domain}
-user_password=${user_password}
 dns_cloudflare_api_token=${cloudflare_token}
 EOF
 }
 
 load_global_config() {
   if [[ -f "${global_config_path}" ]]; then
-    show_info "loading data from configuration: ${global_config_path}\n"
+    show_info "loading configuration from ${global_config_path}\n"
 
-    user_name=$(load_ini_config 'user_name' "${global_config_path}")
     user_email=$(load_ini_config 'user_email' "${global_config_path}")
     user_domain=$(load_ini_config 'user_domain' "${global_config_path}")
-    user_password=$(load_ini_config 'user_password' "${global_config_path}")
     cloudflare_token=$(load_ini_config 'dns_cloudflare_api_token' "${global_config_path}")
 
-    if [[ -z "${user_name}" || -z "${user_email}" || -z "${user_domain}" || -z "${user_password}" || -z "${cloudflare_token}" ]]; then
-      show_error "there is an error in the configuration file, please repair the configuration file: ${global_config_path}\n"
+    if [[ -z "${user_email}" || -z "${user_domain}" || -z "${cloudflare_token}" ]]; then
+      show_error "configuration is incomplete, please repair or delete ${global_config_path}\n"
       return 1
     fi
   else
     show_info "please input your personal information as prompted\n"
 
-    user_name=$(get_input_until_success "please input your name: ")
-    user_email=$(get_input_until_success "please input your email: ")
-    user_domain=$(get_input_until_success "please input your domain: ")
-    user_password=$(get_input_until_success "please input your password: ")
-    cloudflare_token=$(get_input_until_success "please input your cloudflare token: ")
+    user_email=$(get_input_until_success "please input your email: " '^[^[:space:]@]+@[^[:space:]@]+\.[^[:space:]@]+$' "invalid email address")
+    user_domain=$(get_input_until_success "please input your apex domain (e.g. example.com): " '^([a-z0-9-]+\.)+[a-z]{2,}$' "invalid domain name")
+    cloudflare_token=$(get_input_until_success "please input your cloudflare api token: " '' '' true)
 
     install_content_with_comment 600 "root:root" "$(generate_global_config)" "${global_config_path}" true
   fi
 
+  www_domain="www.${user_domain}"
   certificate_path="/etc/letsencrypt/live/${user_domain}/fullchain.pem"
   certificate_key_path="/etc/letsencrypt/live/${user_domain}/privkey.pem"
 }
 
-# install certbot and apply for a certificate for user's domain
-install_certbot_binary() {
-  show_info "checking the status of certbot - "
-  type -t certbot &>/dev/null && {
-    show_text "installed\n"
+# -------------------------------------------------------------------
+# certificate (apex + wildcard, shared by every site)
+# -------------------------------------------------------------------
+install_certbot() {
+  if command -v certbot &>/dev/null && package_installed python3-certbot-dns-cloudflare; then
+    show_info "certbot and the cloudflare dns plugin are already installed\n"
     return 0
-  }
-  show_text "not installed\n"
-
-  show_info "executing command ${package_manager} certbot python3-certbot-dns-cloudflare\n"
-  if sh -c "${package_manager} certbot python3-certbot-dns-cloudflare" &>/dev/null; then
-    show_success "installed certbot python3-certbot-dns-cloudflare\n"
-    return 0
-  else
-    show_error "please run command manually: ${package_manager} certbot python3-certbot-dns-cloudflare\n"
-    return 1
   fi
+
+  install_packages certbot python3-certbot-dns-cloudflare
+  show_success "installed certbot and the cloudflare dns plugin\n"
+}
+
+certificate_covers_wildcard() {
+  [[ -f "${certificate_path}" && -f "${certificate_key_path}" ]] || return 1
+  openssl x509 -noout -ext subjectAltName -in "${certificate_path}" 2>/dev/null | grep -Fq "DNS:*.${user_domain}"
 }
 
 apply_domain_certificate() {
-  show_info "checking whether /etc/letsencrypt/live/${user_domain} exist\n"
-  [[ -e "/etc/letsencrypt/live/${user_domain}" ]] && {
-    show_warn "/etc/letsencrypt/live/${user_domain} is exist\n"
-    return 0
-  }
-  show_info "/etc/letsencrypt/live/${user_domain} not exist\n"
+  local expand_flag=()
 
-  show_info "applying certificate for ${user_domain}: certbot certonly --dns-cloudflare --email ${user_email} --dns-cloudflare-credentials ${global_config_path} -d ${user_domain}\n"
-  certbot certonly --dns-cloudflare --email "${user_email}" --dns-cloudflare-credentials "${global_config_path}" -d "${user_domain}" &>/dev/null <<<'Y' || {
-    show_error "please run command manually: certbot certonly --dns-cloudflare --email ${user_email} --dns-cloudflare-credentials ${global_config_path} -d ${user_domain}\n"
+  if certificate_covers_wildcard; then
+    show_info "certificate for ${user_domain} and *.${user_domain} already exists, skipping issuance\n"
+    return 0
+  fi
+
+  [[ -f "${certificate_path}" ]] && expand_flag=(--expand)
+
+  show_info "requesting certificate for ${user_domain} and *.${user_domain} via cloudflare dns challenge\n"
+  certbot certonly --non-interactive --agree-tos --email "${user_email}" \
+    --dns-cloudflare --dns-cloudflare-credentials "${global_config_path}" \
+    --cert-name "${user_domain}" -d "${user_domain}" -d "*.${user_domain}" "${expand_flag[@]}" &>/dev/null || {
+    show_error "certbot failed, please run manually: certbot certonly --dns-cloudflare --dns-cloudflare-credentials ${global_config_path} --email ${user_email} --cert-name ${user_domain} -d ${user_domain} -d '*.${user_domain}'\n"
     return 1
   }
-  show_success "successfully applyed and saved at /etc/letsencrypt/live/${user_domain}\n"
+  show_success "certificate saved under /etc/letsencrypt/live/${user_domain}\n"
 }
 
-# install nginx and modify default config
+generate_deploy_hook() {
+  cat <<'EOF'
+#!/bin/sh
+# reload nginx after certbot renews a certificate
+if systemctl is-active --quiet nginx.service; then
+  systemctl reload nginx.service
+fi
+EOF
+}
+
+install_deploy_hook() {
+  install_content_with_comment 755 "root:root" "$(generate_deploy_hook)" "${deploy_hook_path}" true
+}
+
+# -------------------------------------------------------------------
+# nginx package, user and runtime facts
+# -------------------------------------------------------------------
+install_nginx() {
+  if command -v nginx &>/dev/null; then
+    show_info "nginx is already installed\n"
+    return 0
+  fi
+
+  install_packages nginx
+  show_success "installed nginx\n"
+}
+
+# create a dedicated nginx:nginx system account when it is missing.
+# the distribution's www-data account is left untouched
+ensure_nginx_user() {
+  if getent passwd nginx &>/dev/null; then
+    show_info "user nginx already exists\n"
+  else
+    show_info "creating system user and group nginx\n"
+    adduser --system --group --home /var/www --no-create-home --shell /usr/sbin/nologin nginx &>/dev/null || {
+      show_error "failed to create system user nginx\n"
+      return 1
+    }
+    show_success "created system user and group nginx\n"
+  fi
+
+  # keep the logrotate configuration consistent with the running user
+  if [[ -f /etc/logrotate.d/nginx ]] && grep -q 'www-data' /etc/logrotate.d/nginx; then
+    show_info "updating /etc/logrotate.d/nginx to create logs owned by nginx\n"
+    sed -Ei 's/\bwww-data\b/nginx/g' /etc/logrotate.d/nginx
+  fi
+}
+
+# the standalone "http2 on;" directive only exists since nginx 1.25.1,
+# older packages (debian 12: 1.22, ubuntu 24.04: 1.24) need "listen ... http2"
+detect_http2_directive() {
+  local version lowest
+
+  version=$(nginx -v 2>&1 | sed -En 's|.*nginx/([0-9]+(\.[0-9]+)*).*|\1|p')
+  lowest=$(printf '%s\n' "1.25.1" "${version:-0}" | sort -V | head -n 1)
+
+  if [[ "${lowest}" == "1.25.1" ]]; then
+    http2_directive="http2 on;"
+    listen_http2=""
+  else
+    http2_directive=""
+    listen_http2=" http2"
+  fi
+  show_info "nginx version ${version:-unknown}, http/2 enabled via ${http2_directive:-listen parameter}\n"
+}
+
+ensure_dhparam() {
+  if [[ -f "${dhparam_path}" ]] && openssl dhparam -check -in "${dhparam_path}" &>/dev/null; then
+    show_info "valid diffie-hellman parameters already exist at ${dhparam_path}\n"
+    return 0
+  fi
+
+  show_info "generating diffie-hellman parameters at ${dhparam_path} (this may take a while)\n"
+  openssl dhparam -out "${dhparam_path}" 2048 &>/dev/null || {
+    show_error "failed to generate diffie-hellman parameters\n"
+    return 1
+  }
+  show_success "generated diffie-hellman parameters\n"
+}
+
+# -------------------------------------------------------------------
+# nginx configuration files
+# -------------------------------------------------------------------
 generate_nginx_conf() {
   cat <<EOF
 user                 nginx;
@@ -332,7 +257,7 @@ http {
     ssl_session_tickets    off;
 
     # diffie-hellman parameter for DHE ciphersuites
-    ssl_dhparam            /etc/nginx/dhparam.pem;
+    ssl_dhparam            ${dhparam_path};
 
     # Mozilla Intermediate configuration
     ssl_protocols          TLSv1.2 TLSv1.3;
@@ -353,18 +278,16 @@ http {
     # Define default server below
     server {
         listen 80 default_server;
-        listen [::]:80 default_server;
         server_name _;
 
-        return 301 https://${user_domain}\$request_uri;
+        return 301 https://${www_domain}\$request_uri;
     }
 
     server {
-        listen 443 ssl default_server;
-        listen [::]:443 ssl default_server;
+        listen 443 ssl${listen_http2} default_server;
         server_name _;
 
-        http2 on;
+        ${http2_directive}
 
         ssl_certificate     ${certificate_path};
         ssl_certificate_key ${certificate_key_path};
@@ -379,46 +302,121 @@ http {
         # additional config
         include             nginxconfig.io/general.conf;
 
-        return 301 https://${user_domain}\$request_uri;
+        return 301 https://${www_domain}\$request_uri;
     }
 
     # Load configs
-    include                /etc/nginx/conf.d/*.conf;
-    include                /etc/nginx/sites-enabled/*;
+    include                ${snippets_root}/*.conf;
+    include                ${sites_enabled}/*;
 }
 EOF
 }
 
-generate_domain_conf() {
+# apex domain: redirect everything to the www site
+generate_apex_conf() {
   cat <<EOF
 # HTTP redirect
 server {
     listen      80;
-    listen      [::]:80;
     server_name ${user_domain};
-    return      301 https://${user_domain}\$request_uri;
+    return      301 https://${www_domain}\$request_uri;
 }
 
 server {
-    listen              443 ssl;
-    listen              [::]:443 ssl;
+    listen              443 ssl${listen_http2};
     server_name         ${user_domain};
-    root                /var/www/${user_domain}/public;
 
-    http2 on;
+    ${http2_directive}
+
+    # SSL
+    ssl_certificate     ${certificate_path};
+    ssl_certificate_key ${certificate_key_path};
+
+    return              301 https://${www_domain}\$request_uri;
+}
+EOF
+}
+
+# www site: static root plus location snippets from conf.d/www.<domain>/
+generate_www_conf() {
+  cat <<EOF
+# HTTP redirect
+server {
+    listen      80;
+    server_name ${www_domain};
+    return      301 https://${www_domain}\$request_uri;
+}
+
+server {
+    listen              443 ssl${listen_http2};
+    server_name         ${www_domain};
+    root                /var/www/${www_domain}/public;
+
+    ${http2_directive}
 
     # SSL
     ssl_certificate     ${certificate_path};
     ssl_certificate_key ${certificate_key_path};
 
     # additional location config
-    include             /etc/nginx/conf.d/${user_domain}/*.conf;
+    include             ${snippets_root}/${www_domain}/*.conf;
+}
+EOF
+}
+
+# subdomain site: all locations come from conf.d/<sub>.<domain>/
+generate_proxy_site_conf() {
+  local site="${1}"
+
+  cat <<EOF
+# HTTP redirect
+server {
+    listen      80;
+    server_name ${site};
+    return      301 https://${site}\$request_uri;
+}
+
+server {
+    listen              443 ssl${listen_http2};
+    server_name         ${site};
+
+    ${http2_directive}
+
+    # SSL
+    ssl_certificate     ${certificate_path};
+    ssl_certificate_key ${certificate_key_path};
+
+    # additional location config
+    include             ${snippets_root}/${site}/*.conf;
+}
+EOF
+}
+
+# conf.d/<site>/@.conf: proxy the whole site to a local port
+generate_proxy_location_conf() {
+  local port="${1}"
+
+  cat <<EOF
+location / {
+    proxy_pass http://127.0.0.1:${port};
+
+    proxy_http_version 1.1;
+
+    proxy_set_header Host \$host;
+    proxy_set_header Upgrade \$http_upgrade;
+    proxy_set_header Connection \$connection_upgrade;
+    proxy_set_header X-Real-IP \$remote_addr;
+    proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto \$scheme;
+
+    proxy_read_timeout 86400s;
+    proxy_send_timeout 86400s;
 }
 EOF
 }
 
 generate_security_conf() {
-  cat <<EOF
+  cat <<'EOF'
 # security headers
 add_header X-XSS-Protection          "1; mode=block" always;
 add_header X-Content-Type-Options    "nosniff" always;
@@ -435,7 +433,7 @@ EOF
 }
 
 generate_general_conf() {
-  cat <<EOF
+  cat <<'EOF'
 # favicon.ico
 location = /favicon.ico {
     log_not_found off;
@@ -467,7 +465,7 @@ EOF
 }
 
 generate_index_html() {
-  cat <<EOF
+  cat <<'EOF'
 <!DOCTYPE html>
 <html lang="en">
   <head>
@@ -520,136 +518,135 @@ generate_index_html() {
 EOF
 }
 
-debian_install_nginx() {
-  show_info "checking the status of nginx - "
-  type -t nginx &>/dev/null && {
-    show_text "installed\n"
-    return 0
-  }
-  show_text "not installed\n"
+# -------------------------------------------------------------------
+# site management
+# -------------------------------------------------------------------
+enable_site() {
+  local site="${1}"
 
-  show_info "executing command ${package_manager} nginx\n"
-  if sh -c "${package_manager} nginx" &>/dev/null; then
-    show_success "successfully installed nginx\n"
-    return 0
-  else
-    show_error "please run command manually: ${package_manager} nginx\n"
-    return 1
-  fi
+  show_info "enabling site ${site}\n"
+  ln -sfn "${sites_available}/${site}.conf" "${sites_enabled}/${site}.conf"
 }
 
-debian_modify_nginx_default() {
-  local user_id group_id nginx_name
+# create a reverse proxy site <sub>.<domain> -> 127.0.0.1:<port>
+add_proxy_site() {
+  local sub="${1}" port="${2}" site
 
-  # get the name of the old nginx user
-  nginx_name=$(awk -F: '$1~/(nginx|www-data)/ {print $1; exit}' /etc/passwd)
+  site="${sub}.${user_domain}"
 
-  # get old uid and gid by old name
-  user_id=$(awk -F: -v name="$nginx_name" '$1==name {print $3; exit}' /etc/passwd)
-  group_id=$(awk -F: -v name="$nginx_name" '$1==name {print $4; exit}' /etc/passwd)
-
-  if [[ -z "$nginx_name" || -z "$user_id" || -z "$group_id" ]]; then
-    show_error "nginx or www-data user not found in /etc/passwd\n"
-    return 1
+  if [[ -f "${sites_available}/${site}.conf" ]]; then
+    show_warn "site ${site} already exists, leaving its configuration untouched\n"
+    return 0
   fi
 
-  show_info "stopping nginx.service\n"
-  systemctl stop nginx.service &>/dev/null || {
-    show_error "failed to stop nginx.service\n"
-    return 1
-  }
-  show_success "successfully closed nginx.service\n"
+  install_content_with_comment 644 "root:root" "$(generate_proxy_site_conf "${site}")" "${sites_available}/${site}.conf" true
+  install_content_with_comment 644 "root:root" "$(generate_proxy_location_conf "${port}")" "${snippets_root}/${site}/@.conf" true
+  enable_site "${site}"
+}
 
-  show_info "deleting old user named ${nginx_name}\n"
-  deluser --remove-all-files ${nginx_name} &>/dev/null || {
-    show_error "delete ${nginx_name} error\n"
-    return 1
-  }
-  show_success "successfully deleted user named ${nginx_name}\n"
-
-  show_info "creating new group named nginx\n"
-  addgroup --system --gid "${group_id}" nginx &>/dev/null || {
-    show_error "failed to create group named nginx\n"
-    return 1
-  }
-  show_success "successfully created group named nginx\n"
-
-  show_info "creating new user named nginx\n"
-  adduser --system --uid "${user_id}" --gid "${group_id}" --home /var/www --shell /usr/sbin/nologin nginx &>/dev/null || {
-    show_error "failed to create user named nginx\n"
-    return 1
-  }
-  show_success "successfully created user named nginx\n"
-
-  remove_content_with_comment "/var/www/html"
-  remove_content_with_comment "/etc/nginx/sites-enabled"
-  remove_content_with_comment "/etc/nginx/sites-available"
-
-  show_info "checking for diffie-hellman key at /etc/nginx/dhparam.pem\n"
-  if [[ -f "/etc/nginx/dhparam.pem" ]]; then
-    if openssl dhparam -check -in /etc/nginx/dhparam.pem &>/dev/null; then
-      show_success "valid diffie-hellman key already exists at /etc/nginx/dhparam.pem\n"
-    else
-      show_warn "existing /etc/nginx/dhparam.pem is invalid, regenerating...\n"
-      if openssl dhparam -out /etc/nginx/dhparam.pem 2048 &>/dev/null; then
-        show_success "successfully regenerated diffie-hellman key\n"
-      else
-        show_error "failed to regenerate diffie-hellman key\n"
-        return 1
-      fi
-    fi
-  else
-    show_info "diffie-hellman key not found, generating...\n"
-    if openssl dhparam -out /etc/nginx/dhparam.pem 2048 &>/dev/null; then
-      show_success "successfully generated diffie-hellman key\n"
-    else
-      show_error "failed to generate diffie-hellman key\n"
-      return 1
-    fi
-  fi
-
-  if [[ -f /etc/logrotate.d/nginx ]]; then
-    sed -Ei 's/www-data/nginx/g' /etc/logrotate.d/nginx
-    systemctl daemon-reload && systemctl restart logrotate.service
-  fi
+write_nginx_configs() {
+  install -dm755 "${sites_available}" "${sites_enabled}" "${snippets_root}/${www_domain}"
 
   install_content_with_comment 644 "root:root" "$(generate_nginx_conf)" "/etc/nginx/nginx.conf" true
-  install_content_with_comment 644 "root:root" "$(generate_domain_conf)" "/etc/nginx/sites-available/${user_domain}.conf" true
   install_content_with_comment 644 "root:root" "$(generate_security_conf)" "/etc/nginx/nginxconfig.io/security.conf" true
   install_content_with_comment 644 "root:root" "$(generate_general_conf)" "/etc/nginx/nginxconfig.io/general.conf" true
-  install_content_with_comment 644 "root:root" "$(generate_index_html)" "/var/www/${user_domain}/public/index.html" true
+  install_content_with_comment 644 "root:root" "$(generate_apex_conf)" "${sites_available}/@.${user_domain}.conf" true
+  install_content_with_comment 644 "root:root" "$(generate_www_conf)" "${sites_available}/${www_domain}.conf" true
 
-  show_info "creating directory /etc/nginx/conf.d/${user_domain}\n"
-  install -dm755 "/etc/nginx/conf.d/${user_domain}"
+  if [[ ! -f "/var/www/${www_domain}/public/index.html" ]]; then
+    install_content_with_comment 644 "root:root" "$(generate_index_html)" "/var/www/${www_domain}/public/index.html" true
+  fi
 
-  show_info "creating directory /etc/nginx/sites-enabled\n"
-  install -dm755 "/etc/nginx/sites-enabled"
+  # the distribution's default site also claims default_server on port 80
+  remove_content_with_comment "${sites_enabled}/default"
 
-  show_info "creating link /etc/nginx/sites-available/${user_domain}.conf to /etc/nginx/sites-enabled/${user_domain}.conf\n"
-  ln -s "/etc/nginx/sites-available/${user_domain}.conf" "/etc/nginx/sites-enabled/${user_domain}.conf" &>/dev/null
+  enable_site "@.${user_domain}"
+  enable_site "${www_domain}"
+}
 
-  show_info "starting nginx.service\n"
-  systemctl daemon-reload && systemctl start nginx.service &>/dev/null || {
-    show_error "failed to start nginx.service\n"
+# interactively add reverse proxy subdomains, empty input finishes the loop
+configure_proxy_sites() {
+  local sub port
+
+  echo
+  show_info "you can now add reverse proxy subdomains (<sub>.${user_domain} -> 127.0.0.1:<port>)\n"
+
+  # empty input (or end of input when running non-interactively) finishes the loop
+  while true; do
+    sub=$(get_input_message "subdomain to add (e.g. casaos), leave empty to finish: ")
+    sub="${sub,,}"
+    [[ -n "${sub}" ]] || break
+
+    if ! grep -Eq '^[a-z0-9]([a-z0-9-]*[a-z0-9])?$' <<<"${sub}"; then
+      show_warn "invalid subdomain label: ${sub}\n"
+      continue
+    fi
+    if [[ "${sub}" == "www" ]]; then
+      show_warn "www.${user_domain} is the static site managed by this script\n"
+      continue
+    fi
+
+    port=$(get_input_until_success "upstream port for ${sub}.${user_domain}: " '^[0-9]{1,5}$' "port must be a number")
+    if ((10#${port} < 1 || 10#${port} > 65535)); then
+      show_warn "port out of range: ${port}\n"
+      continue
+    fi
+
+    add_proxy_site "${sub}" "${port}"
+  done
+}
+
+reload_nginx() {
+  local test_output
+
+  show_info "validating nginx configuration\n"
+  if ! test_output=$(nginx -t 2>&1); then
+    show_error "nginx configuration test failed:\n${test_output}\n"
     return 1
-  }
-  show_success "successfully started nginx.service\n"
+  fi
+
+  systemctl enable nginx.service &>/dev/null || true
+
+  if systemctl is-active --quiet nginx.service; then
+    show_info "reloading nginx.service\n"
+    systemctl reload nginx.service || {
+      show_error "failed to reload nginx.service, check: journalctl -u nginx.service\n"
+      return 1
+    }
+    show_success "reloaded nginx.service\n"
+  else
+    show_info "starting nginx.service\n"
+    systemctl start nginx.service || {
+      show_error "failed to start nginx.service, check: journalctl -u nginx.service\n"
+      return 1
+    }
+    show_success "started nginx.service\n"
+  fi
 }
 
-debian_installer_nginx() {
-  load_global_config          # loading the configuration file
-  install_certbot_binary      # install certbot binary
-  apply_domain_certificate    # apply for a certificate for the domain name
-  debian_install_nginx        # install nginx binary
-  debian_modify_nginx_default # modify the default configuration of nginx
+print_summary() {
+  echo
+  show_success "nginx is serving https://${www_domain} from /var/www/${www_domain}/public\n"
+  show_info "layout:\n"
+  show_text "    ${sites_available}/<site>.conf          server blocks (enable with: ln -s into ${sites_enabled}/)\n"
+  show_text "    ${snippets_root}/<site>/*.conf          location snippets included by each site\n"
+  show_text "    ${snippets_root}/<sub>.${user_domain}/@.conf   whole-site reverse proxy created by this script\n"
+  show_info "add another proxy subdomain by re-running this script, or copy an existing site pair by hand\n"
+  show_info "disable a site with: rm ${sites_enabled}/<site>.conf && nginx -t && systemctl reload nginx\n"
 }
 
+# -------------------------------------------------------------------
 # main program entry
-case "${os_name}" in
-  ubuntu | debian)
-    debian_installer_nginx
-    ;;
-  *)
-    show_error "unsupported system for ${os_name}\n"
-    ;;
-esac
+# -------------------------------------------------------------------
+load_global_config
+install_certbot
+apply_domain_certificate
+install_deploy_hook
+install_nginx
+ensure_nginx_user
+detect_http2_directive
+ensure_dhparam
+write_nginx_configs
+configure_proxy_sites
+reload_nginx
+print_summary
