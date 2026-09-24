@@ -185,7 +185,14 @@ ensure_login_shell() {
   }
 
   show_info "changing login shell of ${target_user} to ${wanted} (may ask for your password)\n"
-  chsh -s "${wanted}" || {
+  # chsh reads the password from stdin. a piped run (curl | bash) leaves
+  # stdin on the script, so the prompt returns at once and PAM rejects the
+  # empty password. the controlling terminal is the same source the prompts above use
+  if { : </dev/tty; } &>/dev/null; then
+    chsh -s "${wanted}" </dev/tty
+  else
+    chsh -s "${wanted}"
+  fi || {
     show_error "failed to change login shell, run manually: chsh -s ${wanted}\n"
     return 1
   }
