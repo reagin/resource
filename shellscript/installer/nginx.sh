@@ -557,8 +557,11 @@ write_nginx_configs() {
     install_content_with_comment 644 "root:root" "$(generate_index_html)" "/var/www/${www_domain}/public/index.html" true
   fi
 
-  # the distribution's default site also claims default_server on port 80
+  # the distribution's default site also claims default_server on port 80.
+  # the enabled link is what nginx loads; the sites-available file is unused
+  # once this script's catch-all servers are in place, so drop both
   remove_content_with_comment "${sites_enabled}/default"
+  remove_content_with_comment "${sites_available}/default"
 
   enable_site "@.${user_domain}"
   enable_site "${www_domain}"
