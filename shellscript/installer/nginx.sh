@@ -409,6 +409,9 @@ location / {
     proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Proto \$scheme;
 
+    proxy_buffering off;
+    proxy_request_buffering off;
+
     proxy_read_timeout 86400s;
     proxy_send_timeout 86400s;
 }
